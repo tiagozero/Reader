@@ -1,0 +1,5622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reader</title>
+<style>
+  :root{
+    --bg:#ffffff;
+    --sidebar-bg:#f7f8fa;
+    --border:#e5e7eb;
+    --text:#1f2937;
+    --text-muted:#6b7280;
+    --accent:#2563eb;
+    --accent-soft:#eaf1fe;
+    --highlight-bg: rgba(37,99,235,0.10);
+    --highlight-border: rgba(37,99,235,0.55);
+    --highlight-bg-hover: rgba(37,99,235,0.18);
+    --radius:10px;
+    --reader-font: Georgia, serif;
+    --reader-size: 19px;
+    --reader-width: 700px;
+    --reader-line-height: 1.85;
+    --reader-columns: 1;
+    --reader-column-gap: 52px;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .app{
+    display:flex;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:280px;
+    min-width:280px;
+    background:var(--sidebar-bg);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    transition:margin-left .2s ease;
+  }
+  .sidebar.collapsed{ margin-left:-280px; }
+
+  .sidebar-header{
+    padding:20px 18px 14px;
+    border-bottom:1px solid var(--border);
+  }
+  .sidebar-header h1{
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:.02em;
+    margin:0 0 12px;
+    color:var(--text);
+  }
+  .search-box{
+    position:relative;
+  }
+  .search-box input{
+    width:100%;
+    padding:8px 10px 8px 30px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    font-size:13px;
+    background:#fff;
+    color:var(--text);
+    outline:none;
+  }
+  .search-box input:focus{ border-color:var(--accent); }
+  .search-box svg{
+    position:absolute;
+    left:9px; top:50%;
+    transform:translateY(-50%);
+    color:var(--text-muted);
+  }
+
+  .text-list{
+    flex:1;
+    overflow-y:auto;
+    padding:8px;
+  }
+  .text-item{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    padding:10px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13.5px;
+    color:var(--text);
+    line-height:1.35;
+  }
+  .text-item:hover{ background:#eef0f3; }
+  .text-item.active{ background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  .text-item .n{
+    color:var(--text-muted);
+    font-variant-numeric:tabular-nums;
+    font-size:12px;
+    min-width:24px;
+  }
+  .text-item.active .n{ color:var(--accent); }
+  .text-item .t{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .text-item.completed .n,
+  .text-item.completed .t{ color:#16a34a; }
+  .text-item.completed.active{ background:#eafaf0; }
+  .text-item.completed.active .n,
+  .text-item.completed.active .t{ color:#15803d; }
+  .text-item .check{
+    flex:none;
+    color:#16a34a;
+    display:none;
+    margin-left:auto;
+  }
+  .text-item.completed .check{ display:inline-flex; }
+
+  .category-group{ margin-bottom:2px; }
+  .category-header{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:9px 10px;
+    border:none;
+    background:transparent;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:12.5px;
+    font-weight:700;
+    color:var(--text);
+    text-align:left;
+  }
+  .category-header:hover{ background:#eef0f3; }
+  .category-header .chev{
+    flex:none;
+    color:var(--text-muted);
+    transition:transform .15s ease;
+  }
+  .category-header .chev.open{ transform:rotate(90deg); }
+  .category-header .category-name{ flex:1; }
+  .category-header .category-count{
+    font-size:11px;
+    font-weight:600;
+    color:var(--text-muted);
+    background:var(--sidebar-bg);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:1px 7px;
+  }
+  .category-header .category-progress{
+    font-size:11px;
+    font-weight:700;
+    color:#16a34a;
+    background:#eafaf0;
+    border:1px solid #bbf0cf;
+    border-radius:999px;
+    padding:1px 7px;
+    white-space:nowrap;
+  }
+  .category-items{ padding-left:6px; }
+
+  .sidebar-footer{
+    padding:12px 14px;
+    border-top:1px solid var(--border);
+    font-size:11.5px;
+    color:var(--text-muted);
+  }
+
+  /* ---------- Main ---------- */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+
+  .toolbar{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:10px 18px;
+    border-bottom:1px solid var(--border);
+    background:#fff;
+    flex-wrap:wrap;
+  }
+  .toolbar .group{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    padding:3px;
+    background:var(--sidebar-bg);
+    border-radius:9px;
+    border:1px solid var(--border);
+  }
+  .icon-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:30px;
+    height:30px;
+    border:none;
+    background:transparent;
+    border-radius:6px;
+    cursor:pointer;
+    color:var(--text);
+    font-size:13px;
+    font-weight:600;
+  }
+  .icon-btn:hover{ background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .icon-btn:active{ background:var(--accent-soft); }
+  .icon-btn.col-btn{ width:auto; padding:0 9px; font-size:12.5px; }
+  .icon-btn.col-btn.active{ background:#fff; color:var(--accent); box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .toolbar select{
+    border:1px solid var(--border);
+    background:#fff;
+    border-radius:7px;
+    padding:6px 8px;
+    font-size:12.5px;
+    color:var(--text);
+    cursor:pointer;
+    outline:none;
+  }
+  .toolbar .sep{ width:1px; height:22px; background:var(--border); margin:0 4px; }
+  .spacer{ flex:1; }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 12px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--text);
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn:hover{ background:var(--sidebar-bg); }
+  .btn.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+  }
+  .btn.primary:hover{ background:#1d4fd1; }
+  .btn.ghost{ border-color:transparent; background:transparent; color:var(--text-muted); }
+  .btn.ghost:hover{ background:var(--sidebar-bg); color:var(--text); }
+
+  .menu-toggle{ display:flex; }
+
+  .glossary-badge{
+    font-size:11.5px;
+    color:var(--text-muted);
+    padding:0 6px;
+  }
+
+  /* ---------- Reader ---------- */
+  .reader-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:48px 24px 120px;
+    display:flex;
+    justify-content:center;
+  }
+  .reader-col{
+    width:100%;
+    max-width:calc(var(--reader-width) * var(--reader-columns) + var(--reader-column-gap) * (var(--reader-columns) - 1));
+  }
+  .reader-title-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    margin:0 0 28px;
+  }
+  .reader-title{
+    font-family:var(--reader-font);
+    font-size:calc(var(--reader-size) + 10px);
+    font-weight:700;
+    line-height:1.25;
+    margin:0;
+    color:var(--text);
+  }
+  .complete-btn{
+    flex:none;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:8px 14px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--text);
+    font-size:13px;
+    font-weight:600;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .complete-btn:hover{ background:#eef0f3; }
+  .complete-btn.is-complete{
+    background:#eafaf0;
+    border-color:#bbf0cf;
+    color:#15803d;
+  }
+  .complete-btn.is-complete:hover{ background:#defbe7; }
+  .complete-btn svg{ flex:none; }
+  .reader-body{
+    font-family:var(--reader-font);
+    font-size:var(--reader-size);
+    line-height:var(--reader-line-height);
+    color:var(--text);
+    column-count:var(--reader-columns);
+    column-gap:var(--reader-column-gap);
+    column-rule:1px solid var(--border);
+    column-fill:auto;
+  }
+  .reader-body p{ margin:0 0 1.3em; break-inside:avoid; }
+  .reader-body.paged{
+    overflow-x:auto;
+    overflow-y:hidden;
+    scroll-behavior:smooth;
+    padding-bottom:6px;
+  }
+
+  .page-nav{
+    display:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:16px;
+  }
+  .page-nav.show{ display:flex; }
+  .page-nav-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:8px 14px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--text);
+    font-size:13px;
+    font-weight:600;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    cursor:pointer;
+  }
+  .page-nav-btn:hover{ background:#eef0f3; }
+  .page-nav-btn:disabled{ opacity:.4; cursor:default; }
+  .page-nav-btn:disabled:hover{ background:#fff; }
+  .page-nav-status{
+    font-size:12px;
+    color:var(--text-muted);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .gw{
+    background:var(--highlight-bg);
+    border-radius:3px;
+    padding:0 1px;
+    cursor:pointer;
+    transition:background .12s ease;
+  }
+  .gw:hover{ background:var(--highlight-bg-hover); }
+
+  /* ---------- Vocabulary tracking (non-glossary words) ---------- */
+  .word{
+    cursor:pointer;
+    border-radius:3px;
+    padding:0 1px;
+    transition:background .12s ease;
+  }
+  .word:hover{ background:rgba(37,99,235,.08); }
+
+  .vw{
+    cursor:pointer;
+    border-radius:3px;
+    padding:0 1px;
+    transition:background .12s ease;
+  }
+  .vw.status-1{ background:rgba(234,179,8,.22); }   /* New */
+  .vw.status-2{ background:rgba(249,115,22,.20); }  /* Learning */
+  .vw.status-3{ background:rgba(16,185,129,.18); }  /* Familiar */
+  .vw.status-4{ background:rgba(107,114,128,.14); } /* Known */
+  .vw.status-1:hover{ background:rgba(234,179,8,.34); }
+  .vw.status-2:hover{ background:rgba(249,115,22,.32); }
+  .vw.status-3:hover{ background:rgba(16,185,129,.28); }
+  .vw.status-4:hover{ background:rgba(107,114,128,.24); }
+
+  .empty-state{
+    max-width:420px;
+    margin:80px auto;
+    text-align:center;
+    color:var(--text-muted);
+  }
+  .empty-state h2{ color:var(--text); font-size:18px; margin-bottom:8px; }
+  .empty-state p{ font-size:13.5px; line-height:1.6; }
+
+  /* ---------- Popup ---------- */
+  .popup{
+    position:fixed;
+    z-index:50;
+    background:#111827;
+    color:#fff;
+    padding:9px 13px;
+    border-radius:8px;
+    font-size:13.5px;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);
+    max-width:280px;
+    line-height:1.4;
+    pointer-events:none;
+  }
+  .popup .pw{
+    font-weight:700;
+    color:#93c5fd;
+    display:block;
+    margin-bottom:2px;
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+
+  /* ---------- Vocab popup (interactive) ---------- */
+  .vocab-popup{
+    position:fixed;
+    z-index:55;
+    background:#fff;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    box-shadow:0 12px 32px rgba(0,0,0,.18);
+    padding:12px;
+    width:230px;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .vocab-popup .vp-term{
+    font-weight:700;
+    font-size:14.5px;
+    margin-bottom:8px;
+    word-break:break-word;
+  }
+  .vp-status-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+    margin-bottom:8px;
+  }
+  .vp-status-btn{
+    border:1px solid var(--border);
+    background:#fff;
+    border-radius:6px;
+    padding:6px 4px;
+    font-size:11.5px;
+    cursor:pointer;
+    text-align:center;
+    color:var(--text-muted);
+  }
+  .vp-status-btn[data-status="1"].active{ background:rgba(234,179,8,.22); border-color:rgba(234,179,8,.6); color:#7a5b00; }
+  .vp-status-btn[data-status="2"].active{ background:rgba(249,115,22,.20); border-color:rgba(249,115,22,.6); color:#8a3a06; }
+  .vp-status-btn[data-status="3"].active{ background:rgba(16,185,129,.18); border-color:rgba(16,185,129,.55); color:#066148; }
+  .vp-status-btn[data-status="4"].active{ background:rgba(107,114,128,.16); border-color:rgba(107,114,128,.55); color:#374151; }
+  .vocab-popup textarea{
+    width:100%;
+    min-height:44px;
+    resize:vertical;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:6px 8px;
+    font-size:12.5px;
+    font-family:inherit;
+    color:var(--text);
+    margin-bottom:8px;
+    outline:none;
+  }
+  .vocab-popup textarea:focus{ border-color:var(--accent); }
+  .vp-actions{
+    display:flex;
+    justify-content:space-between;
+    gap:6px;
+  }
+  .vp-actions button{
+    border:none;
+    border-radius:6px;
+    padding:6px 10px;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .vp-remove{ background:#fef2f2; color:#b91c1c; }
+  .vp-remove:hover{ background:#fee2e2; }
+  .vp-done{ background:var(--accent); color:#fff; margin-left:auto; }
+  .vp-done:hover{ background:#1d4ed8; }
+
+  /* ---------- Vocabulary modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(17,24,39,.45);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:70;
+    padding:20px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal{
+    background:#fff;
+    border-radius:12px;
+    width:100%;
+    max-width:560px;
+    max-height:80vh;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);
+    overflow:hidden;
+  }
+  .modal-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 18px;
+    border-bottom:1px solid var(--border);
+  }
+  .modal-header h2{ font-size:16px; margin:0; color:var(--text); }
+  .modal-filters{
+    display:flex;
+    gap:6px;
+    padding:12px 18px 0;
+    flex-wrap:wrap;
+  }
+  .filter-chip{
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--text-muted);
+    border-radius:999px;
+    padding:5px 12px;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .filter-chip.active{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  .modal-body{
+    padding:12px 18px 18px;
+    overflow-y:auto;
+    flex:1;
+  }
+  .vocab-row{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .vocab-row:last-child{ border-bottom:none; }
+  .vr-main{ flex:1; min-width:0; }
+  .vr-term{ font-weight:700; font-size:14px; color:var(--text); word-break:break-word; }
+  .vr-note{ font-size:12.5px; color:var(--text-muted); margin-top:2px; word-break:break-word; }
+  .vr-dot{
+    width:9px; height:9px; border-radius:50%;
+    flex:none; margin-top:5px;
+  }
+  .vr-dot.status-1{ background:#eab308; }
+  .vr-dot.status-2{ background:#f97316; }
+  .vr-dot.status-3{ background:#10b981; }
+  .vr-dot.status-4{ background:#6b7280; }
+  .vr-select{
+    font-size:12px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:4px 6px;
+    background:#fff;
+    color:var(--text);
+  }
+  .vr-del{
+    border:none;
+    background:none;
+    color:var(--text-muted);
+    cursor:pointer;
+    font-size:16px;
+    line-height:1;
+    padding:2px 4px;
+  }
+  .vr-del:hover{ color:#b91c1c; }
+  .vocab-empty{
+    text-align:center;
+    color:var(--text-muted);
+    font-size:13px;
+    padding:30px 10px;
+  }
+
+  /* ---------- Toast ---------- */
+  .toast{
+    position:fixed;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%) translateY(10px);
+    background:#111827;
+    color:#fff;
+    padding:10px 16px;
+    border-radius:8px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease;
+    z-index:60;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:820px){
+    .sidebar{ position:fixed; z-index:40; height:100%; box-shadow:0 0 0 2000px rgba(0,0,0,0); }
+    .sidebar.collapsed{ margin-left:-280px; }
+    .sidebar:not(.collapsed){ box-shadow:0 0 40px rgba(0,0,0,.15); }
+    .menu-toggle{ display:flex; }
+    .reader-scroll{ padding:32px 16px 100px; }
+    .toolbar{ padding:8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar collapsed" id="sidebar">
+    <div class="sidebar-header">
+      <h1>My Library</h1>
+      <div class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" placeholder="Search texts…">
+      </div>
+    </div>
+    <div class="text-list" id="textList"></div>
+    <div class="sidebar-footer" id="sidebarFooter"></div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+    <div class="toolbar">
+      <a class="icon-btn" id="homeLink" href="home.html" title="Home" target="_blank" rel="noopener" style="text-decoration:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      </a>
+
+      <button class="icon-btn menu-toggle" id="menuToggle" title="Toggle library">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+
+      <div class="group" title="Font size">
+        <button class="icon-btn" id="fontDec">A−</button>
+        <button class="icon-btn" id="fontInc">A+</button>
+      </div>
+
+      <div class="group" title="Reading width">
+        <button class="icon-btn" id="widthDec">↔−</button>
+        <button class="icon-btn" id="widthInc">↔+</button>
+      </div>
+
+      <div class="group" id="columnGroup" title="Columns">
+        <button class="icon-btn col-btn" id="col1Btn" data-cols="1">1 col</button>
+        <button class="icon-btn col-btn" id="col2Btn" data-cols="2">2 col</button>
+        <button class="icon-btn col-btn" id="col3Btn" data-cols="3">3 col</button>
+      </div>
+
+      <select id="fontFamilySelect" title="Font"></select>
+
+      <div class="sep"></div>
+
+      <span class="glossary-badge" id="glossaryCount"></span>
+
+      <div class="spacer"></div>
+
+      <button class="btn ghost" id="vocabBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Vocabulary <span id="vocabCount">0</span>
+      </button>
+    </div>
+
+    <div class="reader-scroll" id="readerScroll">
+      <div class="reader-col" id="readerCol">
+        <div class="empty-state">
+          <h2>Pick a text to start reading</h2>
+          <p>Choose any title from the library on the left. Words covered by the glossary are highlighted — click one to see its translation.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="vocabModalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>My Vocabulary</h2>
+      <button class="icon-btn" id="vocabModalClose">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-filters" id="vocabFilters">
+      <button class="filter-chip active" data-filter="all">All</button>
+      <button class="filter-chip" data-filter="1">New</button>
+      <button class="filter-chip" data-filter="2">Learning</button>
+      <button class="filter-chip" data-filter="3">Familiar</button>
+      <button class="filter-chip" data-filter="4">Known</button>
+    </div>
+    <div class="modal-body" id="vocabList"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   1. TEXTS
+   -------------------------------------------------------------------------
+   Paste your 100 texts here as a JSON array. Each item needs an "id"
+   (unique), a "title", and a "body" (plain text — use "
+
+" between
+   paragraphs, they'll be split into <p> tags automatically).
+   ========================================================================= */
+const TEXTS = [
+  {
+    "id": 1,
+    "category": "Foundation",
+    "title": "American superstitions",
+    "body": "Every culture has superstitions. Some people believe them more than others. Even in our modern technological society, superstitions still hold a powerful influence. Most people seem to outgrow them. But how many people continue to believe, or at least act like they believe, these superstitions as adults? A survey conducted for the journal American Demographics by the research firm Market Facts found some surprising results. In modern America, where superstitions are seen as nothing more than the beliefs of a weak mind, 44% of the people surveyed still admitted they were superstitious. The other 56% claimed to be only optimistically superstitious, meaning they were more willing to believe superstitions relating to good luck over ones related to bad luck. For example, 12% of those who said they were not really superstitious confessed to knocking on wood for good luck. And 9% confessed they would pick up a penny on the street for good luck. A further 9% of non-believers also said they would pick a four-leaf clover for luck if they found one. And some still believed in kissing under the mistletoe for luck. Of the 44% of Americans who admit their superstitious beliefs, 65% said they were only a little superstitious, 27% were somewhat superstitious, and 8% were very superstitious. Among this group of believers, some interesting differences appeared when the men and women were considered separately. In the survey, women comprised 60% of the entire superstitious group, seeming to indicate that women tend to be more superstitious than men. However, more than half, 64%, of the very superstitious believers were male. Additionally, age also showed significant differences between the believers and non-believers. More young people admitted their superstitious nature than older people in the survey. For people between the ages of 18 and 24 taking the survey, 64% claimed to be at least a little superstitious. But for seniors 65 and older, only 30% admitted to believing any superstitions. It might be expected that people with more education would be less superstitious, but results from the survey indicated almost equal numbers of believers between those with and without college degrees. Of those survey respondents who never finished or only finished high school, 42% reported being at least a little superstitious. For those with a college education, 47% claimed the same minimal level of belief. In the survey, 10 common superstitions were listed for the people who responded. Of these superstitions, five were related to good luck and five to bad luck. Respondents were then asked to check the ones they believed. Of the superstitions in the list, good luck superstitions were more widely held. The top superstitions related to good luck that most people followed very much were picking four-leaf clovers, 79%, knocking on wood, 72%, picking up pennies, 70%, and crossing fingers for luck, 59%. Of the bad luck superstitions, the most common belief was that breaking a mirror brought bad luck, 82%. Other bad luck superstitions listed in the survey included seeing black cats, walking under ladders, seeing the bride before the wedding, and doing anything on Friday the 13th. Many people would like to think it could not hurt to do something like knocking on wood or crossing your fingers to bring a little luck. After all, who doesn't want a little luck? "
+  },
+  {
+    "id": 2,
+    "category": "Foundation",
+    "title": "Unlucky number thirteen",
+    "body": "1998 was a very bad year, especially for people who believe the number thirteen is an unlucky number. In 1998, three months had a Friday that fell on the thirteenth of the month, February, March and November. That is actually the most Friday the thirteenths possible in a year. The origin of the number thirteen being an unlucky number goes back to the time of Jesus' death. At the Last Supper, Jesus gathered his twelve followers for a special meal, but including himself, there were a total of thirteen people at the table. One of those followers later betrayed Jesus and turned him over to be killed. Today, superstitions about the number continue to worry people. As a result, most American skyscrapers do not have a thirteenth floor. In addition, most airplanes lack a thirteenth row because few customers would buy tickets to sit there. Perhaps surprisingly, when asked, only thirteen percent of the American population admit they believe that Friday the thirteenth is an unlucky day. The percentage is slightly higher among young people. About thirty percent of Americans between the ages of eighteen and twenty-four say they try to generally be a little more careful on a Friday falling on the thirteenth. Interestingly, the nine movies of the horror series Friday the thirteenth were all released during this age group's formative years, 1980 to 1993. Perhaps the series has had a greater effect on people than anyone would like to admit. "
+  },
+  {
+    "id": 3,
+    "category": "Foundation",
+    "title": "Master of Disguise",
+    "body": "Octopuses are famous for their round bodies, big eyes, and eight arms. There are many different types of octopuses, but all are alike in one way: They are masters of disguise. Octopuses can change their appearance in less than a second to look like rocks, plants, or even other animals. How do they do this? An octopus can disguise itself in three ways. One is by using color. An octopus’s skin has special cells called chromatophores. These cells are filled with yellow, brown, and red pigment. When an octopus moves its muscles a certain way, the cells become large and produce colorful spots and other patterns on its skin. Chromatophores can also reflect light. In blue light, for example, an octopus’s skin will look blue. In white light, its skin will look white. With these cells, an octopus can produce many different skin colors and patterns. An octopus can also change its skin texture. When the octopus moves its muscles, its skin can go from smooth to spiky. It might then look like a plant, or coral. Another way an octopus disguises itself is by changing its shape. Some, for example, roll their bodies into balls so they look like rocks. One type of octopus can change its form to look like other sea creatures—especially dangerous ones, such as sea snakes. Why are octopuses so good at disguising themselves? They have to be. The ocean is not a safe place for them. Because they have no bones in their bodies, octopuses are like large pieces of meat. Many predators want to eat them— and they can eat them whole. To survive, octopuses have developed the amazing ability to change their appearance very quickly in order to hide from predators."
+  },
+  {
+    "id": 4,
+    "category": "Foundation",
+    "title": "Text 4",
+    "body": ""
+  },
+  {
+    "id": 5,
+    "category": "Foundation",
+    "title": "Text 5",
+    "body": ""
+  },
+  {
+    "id": 6,
+    "category": "Foundation",
+    "title": "Text 6",
+    "body": ""
+  },
+  {
+    "id": 7,
+    "category": "Foundation",
+    "title": "Text 7",
+    "body": ""
+  },
+  {
+    "id": 8,
+    "category": "Foundation",
+    "title": "Text 8",
+    "body": ""
+  },
+  {
+    "id": 9,
+    "category": "Foundation",
+    "title": "Text 9",
+    "body": ""
+  },
+  {
+    "id": 10,
+    "category": "Foundation",
+    "title": "Text 10",
+    "body": ""
+  },
+  {
+    "id": 11,
+    "category": "Foundation",
+    "title": "Text 11",
+    "body": ""
+  },
+  {
+    "id": 12,
+    "category": "Foundation",
+    "title": "Text 12",
+    "body": ""
+  },
+  {
+    "id": 13,
+    "category": "Foundation",
+    "title": "Text 13",
+    "body": ""
+  },
+  {
+    "id": 14,
+    "category": "Foundation",
+    "title": "Text 14",
+    "body": ""
+  },
+  {
+    "id": 15,
+    "category": "Foundation",
+    "title": "Text 15",
+    "body": ""
+  },
+  {
+    "id": 16,
+    "category": "Foundation",
+    "title": "Text 16",
+    "body": ""
+  },
+  {
+    "id": 17,
+    "category": "Foundation",
+    "title": "Text 17",
+    "body": ""
+  },
+  {
+    "id": 18,
+    "category": "Foundation",
+    "title": "Text 18",
+    "body": ""
+  },
+  {
+    "id": 19,
+    "category": "Foundation",
+    "title": "Text 19",
+    "body": ""
+  },
+  {
+    "id": 20,
+    "category": "Foundation",
+    "title": "Text 20",
+    "body": ""
+  },
+  {
+    "id": 21,
+    "category": "Category 2",
+    "title": "Text 21",
+    "body": ""
+  },
+  {
+    "id": 22,
+    "category": "Category 2",
+    "title": "Text 22",
+    "body": ""
+  },
+  {
+    "id": 23,
+    "category": "Category 2",
+    "title": "Text 23",
+    "body": ""
+  },
+  {
+    "id": 24,
+    "category": "Category 2",
+    "title": "Text 24",
+    "body": ""
+  },
+  {
+    "id": 25,
+    "category": "Category 2",
+    "title": "Text 25",
+    "body": ""
+  },
+  {
+    "id": 26,
+    "category": "Category 2",
+    "title": "Text 26",
+    "body": ""
+  },
+  {
+    "id": 27,
+    "category": "Category 2",
+    "title": "Text 27",
+    "body": ""
+  },
+  {
+    "id": 28,
+    "category": "Category 2",
+    "title": "Text 28",
+    "body": ""
+  },
+  {
+    "id": 29,
+    "category": "Category 2",
+    "title": "Text 29",
+    "body": ""
+  },
+  {
+    "id": 30,
+    "category": "Category 2",
+    "title": "Text 30",
+    "body": ""
+  },
+  {
+    "id": 31,
+    "category": "Category 2",
+    "title": "Text 31",
+    "body": ""
+  },
+  {
+    "id": 32,
+    "category": "Category 2",
+    "title": "Text 32",
+    "body": ""
+  },
+  {
+    "id": 33,
+    "category": "Category 2",
+    "title": "Text 33",
+    "body": ""
+  },
+  {
+    "id": 34,
+    "category": "Category 2",
+    "title": "Text 34",
+    "body": ""
+  },
+  {
+    "id": 35,
+    "category": "Category 2",
+    "title": "Text 35",
+    "body": ""
+  },
+  {
+    "id": 36,
+    "category": "Category 2",
+    "title": "Text 36",
+    "body": ""
+  },
+  {
+    "id": 37,
+    "category": "Category 2",
+    "title": "Text 37",
+    "body": ""
+  },
+  {
+    "id": 38,
+    "category": "Category 2",
+    "title": "Text 38",
+    "body": ""
+  },
+  {
+    "id": 39,
+    "category": "Category 2",
+    "title": "Text 39",
+    "body": ""
+  },
+  {
+    "id": 40,
+    "category": "Category 2",
+    "title": "Text 40",
+    "body": ""
+  },
+  {
+    "id": 41,
+    "category": "Podcasts",
+    "title": "Text 41",
+    "body": ""
+  },
+  {
+    "id": 42,
+    "category": "Podcasts",
+    "title": "Text 42",
+    "body": ""
+  },
+  {
+    "id": 43,
+    "category": "Podcasts",
+    "title": "Text 43",
+    "body": ""
+  },
+  {
+    "id": 44,
+    "category": "Podcasts",
+    "title": "Text 44",
+    "body": ""
+  },
+  {
+    "id": 45,
+    "category": "Podcasts",
+    "title": "Text 45",
+    "body": ""
+  },
+  {
+    "id": 46,
+    "category": "Podcasts",
+    "title": "Text 46",
+    "body": ""
+  },
+  {
+    "id": 47,
+    "category": "Podcasts",
+    "title": "Text 47",
+    "body": ""
+  },
+  {
+    "id": 48,
+    "category": "Podcasts",
+    "title": "Text 48",
+    "body": ""
+  },
+  {
+    "id": 49,
+    "category": "Podcasts",
+    "title": "Text 49",
+    "body": ""
+  },
+  {
+    "id": 50,
+    "category": "Podcasts",
+    "title": "Text 50",
+    "body": ""
+  },
+  {
+    "id": 51,
+    "category": "Podcasts",
+    "title": "Text 51",
+    "body": ""
+  },
+  {
+    "id": 52,
+    "category": "Podcasts",
+    "title": "Text 52",
+    "body": ""
+  },
+  {
+    "id": 53,
+    "category": "Podcasts",
+    "title": "Text 53",
+    "body": ""
+  },
+  {
+    "id": 54,
+    "category": "Podcasts",
+    "title": "Text 54",
+    "body": ""
+  },
+  {
+    "id": 55,
+    "category": "Podcasts",
+    "title": "Text 55",
+    "body": ""
+  },
+  {
+    "id": 56,
+    "category": "Podcasts",
+    "title": "Text 56",
+    "body": ""
+  },
+  {
+    "id": 57,
+    "category": "Podcasts",
+    "title": "Text 57",
+    "body": ""
+  },
+  {
+    "id": 58,
+    "category": "Podcasts",
+    "title": "Text 58",
+    "body": ""
+  },
+  {
+    "id": 59,
+    "category": "Podcasts",
+    "title": "Text 59",
+    "body": ""
+  },
+  {
+    "id": 60,
+    "category": "Podcasts",
+    "title": "Text 60",
+    "body": ""
+  },
+  {
+    "id": 61,
+    "category": "Category 4",
+    "title": "Text 61",
+    "body": ""
+  },
+  {
+    "id": 62,
+    "category": "Category 4",
+    "title": "Text 62",
+    "body": ""
+  },
+  {
+    "id": 63,
+    "category": "Category 4",
+    "title": "Text 63",
+    "body": ""
+  },
+  {
+    "id": 64,
+    "category": "Category 4",
+    "title": "Text 64",
+    "body": ""
+  },
+  {
+    "id": 65,
+    "category": "Category 4",
+    "title": "Text 65",
+    "body": ""
+  },
+  {
+    "id": 66,
+    "category": "Category 4",
+    "title": "Text 66",
+    "body": ""
+  },
+  {
+    "id": 67,
+    "category": "Category 4",
+    "title": "Text 67",
+    "body": ""
+  },
+  {
+    "id": 68,
+    "category": "Category 4",
+    "title": "Text 68",
+    "body": ""
+  },
+  {
+    "id": 69,
+    "category": "Category 4",
+    "title": "Text 69",
+    "body": ""
+  },
+  {
+    "id": 70,
+    "category": "Category 4",
+    "title": "Text 70",
+    "body": ""
+  },
+  {
+    "id": 71,
+    "category": "Category 4",
+    "title": "Text 71",
+    "body": ""
+  },
+  {
+    "id": 72,
+    "category": "Category 4",
+    "title": "Text 72",
+    "body": ""
+  },
+  {
+    "id": 73,
+    "category": "Category 4",
+    "title": "Text 73",
+    "body": ""
+  },
+  {
+    "id": 74,
+    "category": "Category 4",
+    "title": "Text 74",
+    "body": ""
+  },
+  {
+    "id": 75,
+    "category": "Category 4",
+    "title": "Text 75",
+    "body": ""
+  },
+  {
+    "id": 76,
+    "category": "Category 4",
+    "title": "Text 76",
+    "body": ""
+  },
+  {
+    "id": 77,
+    "category": "Category 4",
+    "title": "Text 77",
+    "body": ""
+  },
+  {
+    "id": 78,
+    "category": "Category 4",
+    "title": "Text 78",
+    "body": ""
+  },
+  {
+    "id": 79,
+    "category": "Category 4",
+    "title": "Text 79",
+    "body": ""
+  },
+  {
+    "id": 80,
+    "category": "Category 4",
+    "title": "Text 80",
+    "body": ""
+  },
+  {
+    "id": 81,
+    "category": "Challanges",
+    "title": "Text 81",
+    "body": ""
+  },
+  {
+    "id": 82,
+    "category": "Challanges",
+    "title": "Text 82",
+    "body": ""
+  },
+  {
+    "id": 83,
+    "category": "Challanges",
+    "title": "Text 83",
+    "body": ""
+  },
+  {
+    "id": 84,
+    "category": "Challanges",
+    "title": "Text 84",
+    "body": ""
+  },
+  {
+    "id": 85,
+    "category": "Challanges",
+    "title": "Text 85",
+    "body": ""
+  },
+  {
+    "id": 86,
+    "category": "Challanges",
+    "title": "Text 86",
+    "body": ""
+  },
+  {
+    "id": 87,
+    "category": "Challanges",
+    "title": "Text 87",
+    "body": ""
+  },
+  {
+    "id": 88,
+    "category": "Challanges",
+    "title": "Text 88",
+    "body": ""
+  },
+  {
+    "id": 89,
+    "category": "Challanges",
+    "title": "Text 89",
+    "body": ""
+  },
+  {
+    "id": 90,
+    "category": "Challanges",
+    "title": "Text 90",
+    "body": ""
+  },
+  {
+    "id": 91,
+    "category": "Challanges",
+    "title": "Text 91",
+    "body": ""
+  },
+  {
+    "id": 92,
+    "category": "Challanges",
+    "title": "Text 92",
+    "body": ""
+  },
+  {
+    "id": 93,
+    "category": "Challanges",
+    "title": "Text 93",
+    "body": ""
+  },
+  {
+    "id": 94,
+    "category": "Challanges",
+    "title": "Text 94",
+    "body": ""
+  },
+  {
+    "id": 95,
+    "category": "Challanges",
+    "title": "Text 95",
+    "body": ""
+  },
+  {
+    "id": 96,
+    "category": "Challanges",
+    "title": "Text 96",
+    "body": ""
+  },
+  {
+    "id": 97,
+    "category": "Challanges",
+    "title": "Text 97",
+    "body": ""
+  },
+  {
+    "id": 98,
+    "category": "Challanges",
+    "title": "Text 98",
+    "body": ""
+  },
+  {
+    "id": 99,
+    "category": "Challanges",
+    "title": "Text 99",
+    "body": ""
+  },
+  {
+    "id": 100,
+    "category": "Challanges",
+    "title": "Text 100",
+    "body": ""
+  }
+];
+
+/* =========================================================================
+   2. SHARED GLOSSARY (CSV)
+   -------------------------------------------------------------------------
+   Paste your full glossary CSV as a single string here. Format:
+     word,translation
+     example,ejemplo
+   The first row is treated as a header and skipped automatically if it
+   looks like one (e.g. "word,translation"). Multi-word entries (e.g.
+   "give up,desistir") are supported too.
+   ========================================================================= */
+const GLOSSARY_CSV = `word,translation
+observe,observar
+calm,tranquilo
+breathe,respirar
+customer,cliente
+recommend,recomendar
+patience,paciência
+consistent,consistente
+native speaker,falante nativo
+give up,desistir
+agree, concordar
+alcohol, álcool
+arrive, chegar
+August, agosto
+boat, barco
+breakfast, café da manhã
+camera, câmera
+capital, capital
+catch, pegar
+duck, pato
+enjoy, aproveitar
+invite, convidar
+love, amor
+month, mês
+travel, viajar
+typical, típico
+visit, visitar
+weather, tempo
+week, semana
+wine, vinho
+adventure, aventura
+approach, abordar
+carefully, cuidadosamente
+chemical, químico
+create, criar
+evil, maldade
+experiment, experimento
+kill, matar
+laboratory, laboratório
+laugh, rir
+loud, alto
+nervous, nervoso
+noise, barulho
+project, projeto
+scare, assustar
+secret, segredo
+shout, gritar
+smell, cheirar
+terrible, terrível
+worse, pior
+alien, alienígena
+among, entre
+chart, gráfico
+cloud, nuvem
+describe, descrever
+ever, jamais
+fail, falhar
+grade, nota
+instead, em vez disso
+library, biblioteca
+photograph, fotografia
+planet, planeta
+report, relatório
+several, vários
+shape, forma
+solve, resolver
+suddenly, de repente
+suppose, supor
+understand, entender
+view, vista
+appropriate, apropriado
+avoid, evitar
+behave, comportar-se
+calm, calmo
+concern, preocupação
+content, conteúdo
+expect, esperar
+frequently, frequentemente
+habit, hábito
+instruct, instruir
+issue, problema
+none, nenhum
+patient, paciente
+positive, positivo
+punish, punir
+represent, representar
+shake, sacudir
+spread, espalhar
+stroll, passear
+village, aldeia
+active, ativo
+adult, adulto
+age, idade
+bad, ruim
+balance, equilíbrio
+bike, bicicleta
+choose, escolher
+doctor, médico
+during, durante
+football, futebol
+fun, diversão
+game, jogo
+heart, coração
+golf, golfe
+increase, aumentar
+life, vida
+kilometer, quilômetro
+often, frequentemente
+plenty, bastante
+weight, peso
+apart, separado
+attribute, atribuir
+bilingual, bilíngue
+completely, completamente
+dash, traço
+disgust, nojo
+fashionable, na moda
+foreign, estrangeiro
+gulf, golfo
+mirror, espelho
+natural, natural
+nowadays, hoje em dia
+participant, participante
+ritual, ritual
+spoken, falado
+sport, esporte
+surprised, surpreso
+tense, tenso
+totally, totalmente
+vague, vago
+allow, permitir
+announce, anunciar
+beside, ao lado
+challenge, desafio
+claim, afirmar
+condition, condição
+contribute, contribuir
+difference, diferença
+divide, dividir
+expert, especialista
+famous, famoso
+force, força
+harm, dano
+lay, deitar
+peace, paz
+prince, príncipe
+protect, proteger
+sense, sentido
+sudden, repentino
+therefore, portanto
+accept, aceitar
+arrange, organizar
+attend, comparecer
+chase, perseguir
+contrast, contraste
+encourage, encorajar
+familiar, familiar
+grab, agarrar
+hang, pendurar
+huge, enorme
+necessary, necessário
+pattern, padrão
+propose, propor
+purpose, propósito
+release, liberar
+require, exigir
+satisfied, satisfeito
+single, solteiro
+tear, lágrima
+theory, teoria
+animal, animal
+bus, ônibus
+cat, gato
+command, comando
+depend, depender
+dog, cachorro
+door, porta
+friend, amigo
+hear, ouvir
+help, ajuda
+horse, cavalo
+hospital, hospital
+leg, perna
+medical, médico
+open, abrir
+pull, puxar
+rabbit, coelho
+school, escola
+see, ver
+service, serviço
+benefit, benefício
+certain, certo
+chance, chance
+effect, efeito
+essential, essencial
+far, longe
+focus, foco
+function, função
+grass, grama
+guard, guarda
+image, imagem
+immediate, imediato
+primary, primário
+proud, orgulhoso
+remain, permanecer
+rest, descanso
+separate, separar
+site, local
+tail, cauda
+trouble, problema
+advertise, anunciar
+aware, consciente
+battery, bateria
+black, preto
+city, cidade
+clean, limpo
+country, país
+develop, desenvolver
+electric, elétrico
+eventually, eventualmente
+fact, fato
+glass, vidro
+history, história
+nature, natureza
+never, nunca
+people, pessoas
+plastic, plástico
+problem, problema
+street, rua
+think, pensar
+alone, sozinho
+apartment, apartamento
+article, artigo
+artist, artista
+attitude, atitude
+beauty, beleza
+compare, comparar
+judge, julgar
+magazine, revista
+material, material
+meal, refeição
+method, método
+neighbor, vizinho
+professional, profissional
+profit, lucro
+quality, qualidade
+space, espaço
+stair, escada
+symbol, símbolo
+thin, magro
+accounting, contabilidade
+appeal, apelo
+assume, assumir
+borrow, emprestar
+client, cliente
+downtown, centro da cidade
+dull, entediante
+embarrass, envergonhar
+fare, tarifa
+former, anterior
+found, fundar
+invest, investir
+loan, empréstimo
+practical, prático
+quarter, quarto
+salary, salário
+scholarship, bolsa de estudos
+temporary, temporário
+treasure, tesouro
+urge, urgir
+coach, treinador
+control, controle
+description, descrição
+direct, direto
+exam, exame
+example, exemplo
+limit, limite
+local, local
+magical, mágico
+mail, correio
+novel, romance
+outline, esboço
+poet, poeta
+print, imprimir
+scene, cena
+sheet, lençol
+silly, bobo
+store, loja
+suffer, sofrer
+technology, tecnologia
+across, através
+breathe, respirar
+characteristic, característica
+consume, consumir
+excite, emocionar
+extremely, extremamente
+fear, medo
+fortunate, afortunado
+happen, acontecer
+length, comprimento
+mistake, erro
+observe, observar
+opportunity, oportunidade
+prize, prêmio
+race, corrida
+realize, perceber
+respond, responder
+risk, risco
+wonder, maravilha
+yet, ainda
+art, arte
+book, livro
+clothes, roupas
+community, comunidade
+December, dezembro
+dinner, jantar
+end, fim
+exchange, troca
+family, família
+from, de
+green, verde
+home, lar
+January, janeiro
+red, vermelho
+seven, sete
+start, começar
+together, juntos
+university, universidade
+wear, usar
+year, ano
+appreciate, apreciar
+available, disponível
+beat, bater
+bright, brilhante
+celebrate, celebrar
+decide, decidir
+disappear, desaparecer
+else, outro
+fair, justo
+flow, fluir
+forward, para frente
+hill, colina
+level, nível
+lone, solitário
+puddle, poça
+response, resposta
+season, estação
+solution, solução
+waste, desperdício
+whether, se
+always, sempre
+ask, perguntar
+banana, banana
+bread, pão
+cake, bolo
+carrot, cenoura
+chicken, frango
+chocolate, chocolate
+contain, conter
+delicious, delicioso
+diet, dieta
+eat, comer
+food, comida
+fruit, fruta
+great, ótimo
+health, saúde
+recipe, receita
+restaurant, restaurante
+special, especial
+water, água
+alive, vivo
+bone, osso
+bother, incomodar
+captain, capitão
+conclusion, conclusão
+doubt, dúvida
+explore, explorar
+glad, feliz
+however, no entanto
+injustice, injustiça
+international, internacional
+lawyer, advogado
+mention, mencionar
+old, velho
+policy, política
+social, social
+speech, discurso
+staff, equipe
+toward, em direção a
+wood, madeira
+achieve, alcançar
+advise, aconselhar
+already, já
+basic, básico
+bit, pedaço
+consider, considerar
+destroy, destruir
+entertain, entreter
+extra, extra
+goal, objetivo
+lie, mentir
+meat, carne
+opinion, opinião
+real, real
+reflect, refletir
+regard, respeito
+serve, servir
+vegetable, vegetal
+war, guerra
+worth, valor
+appear, aparecer
+base, base
+brain, cérebro
+career, carreira
+clerk, atendente
+effort, esforço
+enter, entrar
+excellent, excelente
+hero, herói
+hurry, apressar-se
+inform, informar
+later, mais tarde
+leave, sair
+locate, localizar
+nurse, enfermeira
+operation, operação
+pain, dor
+refuse, recusar
+though, embora
+various, vários
+actual, real
+amaze, surpreender
+charge, cobrar
+comfort, conforto
+contact, contato
+customer, cliente
+deliver, entregar
+earn, ganhar
+gate, portão
+include, incluir
+manage, gerenciar
+mystery, mistério
+occur, ocorrer
+opposite, oposto
+plate, prato
+receive, receber
+reward, recompensa
+set, definir
+steal, roubar
+thief, ladrão
+advance, avançar
+athlete, atleta
+average, média
+behavior, comportamento
+behind, atrás
+course, curso
+lower, baixar
+match, partida
+member, membro
+mental, mental
+passenger, passageiro
+personality, personalidade
+poem, poema
+pole, polo
+remove, remover
+safety, segurança
+shoot, atirar
+sound, som
+swim, nadar
+web, teia
+block, bloco
+bury, enterrar
+cheer, torcer
+complex, complexo
+critic, crítico
+direction, direção
+event, evento
+exercise, exercício
+friendship, amizade
+guide, guia
+lack, falta
+perform, realizar
+pressure, pressão
+probably, provavelmente
+public, público
+smart, inteligente
+strike, greve
+support, apoio
+term, termo
+unite, unir
+associate, associar
+environment, meio ambiente
+factory, fábrica
+feature, característica
+instance, instância
+involve, envolver
+medicine, medicina
+mix, misturar
+organize, organizar
+period, período
+populate, popular
+produce, produzir
+range, alcance
+recognize, reconhecer
+regular, regular
+sign, sinal
+tip, dica
+tradition, tradição
+trash, lixo
+wide, largo
+advice, conselho
+along, ao longo
+attention, atenção
+attract, atrair
+climb, escalar
+drop, deixar cair
+final, final
+further, adicional
+imply, implicar
+maintain, manter
+neither, nenhum dos dois
+otherwise, caso contrário
+physical, físico
+prove, provar
+react, reagir
+ride, andar
+situated, situado
+society, sociedade
+standard, padrão
+suggest, sugerir
+actually, na verdade
+bite, morder
+coast, costa
+deal, negócio
+desert, deserto
+effective, eficaz
+examine, examinar
+false, falso
+figure, figura
+gift, presente
+hunger, fome
+imagine, imaginar
+journey, jornada
+puzzle, quebra-cabeça
+quite, bastante
+rather, bastante
+specific, específico
+spider, aranha
+tour, excursão
+trip, viagem
+band, banda
+barely, mal
+boring, entediante
+cancel, cancelar
+driveway, entrada de garagem
+garbage, lixo
+instrument, instrumento
+list, lista
+magic, magia
+message, mensagem
+notice, perceber
+own, próprio
+predict, prever
+professor, professor
+rush, pressa
+schedule, agenda
+share, compartilhar
+stage, palco
+storm, tempestade
+within, dentro
+burden, fardo
+compromise, compromisso
+craft, artesanato
+dive, mergulhar
+fragile, frágil
+half, metade
+innocence, inocência
+lead, liderar
+meeting, reunião
+merge, fundir
+moderate, moderado
+overwhelm, sobrecarregar
+payment, pagamento
+perception, percepção
+settle, resolver
+shiver, tremer
+sociable, sociável
+speed, velocidade
+talkative, falante
+usual, habitual
+above, acima
+ahead, à frente
+amount, quantidade
+belief, crença
+center, centro
+common, comum
+cost, custo
+demonstrate, demonstrar
+different, diferente
+evidence, evidência
+honesty, honestidade
+idiom, expressão idiomática
+independent, independente
+inside, dentro
+jail, cadeia
+master, mestre
+memory, memória
+pocket, bolso
+proper, adequado
+sale, venda
+because, porque
+east, leste
+expensive, caro
+flower, flor
+garden, jardim
+holiday, feriado
+many, muitos
+million, milhão
+mountain, montanha
+place, lugar
+popular, popular
+ski, esquiar
+such, tal
+total, total
+tower, torre
+town, cidade
+train, trem
+walk, caminhar
+watch, assistir
+world, mundo
+anxious, ansioso
+awful, horrível
+consist, consistir
+desire, desejo
+eager, ansioso
+household, doméstico
+intent, intenção
+landscape, paisagem
+lift, levantar
+load, carga
+lung, pulmão
+motion, movimento
+pace, ritmo
+polite, educado
+possess, possuir
+rapidly, rapidamente
+remark, observação
+seek, procurar
+shine, brilhar
+spill, derramar
+arrow, flecha
+battle, batalha
+bow, arco
+brave, corajoso
+chief, chefe
+disadvantage, desvantagem
+enemy, inimigo
+entrance, entrada
+hardly, dificilmente
+intend, pretender
+laughter, risada
+log, tronco
+military, militar
+obey, obedecer
+secure, seguro
+steady, estável
+trust, confiança
+twist, torcer
+unless, a menos que
+weapon, arma
+chest, peito
+confidence, confiança
+consequence, consequência
+disaster, desastre
+disturb, perturbar
+estimate, estimar
+honor, honra
+impress, impressionar
+narrow, estreito
+pale, pálido
+rough, áspero
+satisfy, satisfazer
+scream, gritar
+sensitive, sensível
+shade, sombra
+strength, força
+supplement, suplemento
+terror, terror
+threat, ameaça
+victim, vítima
+ancestor, ancestral
+angle, ângulo
+boot, bota
+border, fronteira
+congratulate, felicitar
+frame, moldura
+heaven, paraíso
+incredible, incrível
+legend, lenda
+praise, elogiar
+proceed, prosseguir
+pure, puro
+relative, parente
+senior, idoso
+silent, silencioso
+sink, afundar
+superior, superior
+surround, cercar
+thick, grosso
+wrap, embrulhar
+also, também
+automatically, automaticamente
+busy, ocupado
+can, poder
+clear, claro
+close, fechar
+discuss, discutir
+feel, sentir
+listen, ouvir
+meet, encontrar
+music, música
+normal, normal
+quiet, quieto
+relax, relaxar
+sleep, dormir
+stress, estresse
+study, estudar
+talk, falar
+work, trabalho
+write, escrever
+basis, base
+biology, biologia
+cage, gaiola
+colleague, colega
+colony, colônia
+debate, debate
+depart, partir
+depress, deprimir
+factual, factual
+fascinate, fascinar
+mission, missão
+nevertheless, no entanto
+occupation, ocupação
+overseas, no exterior
+persuade, persuadir
+route, rota
+ruins, ruínas
+scholar, estudioso
+significant, significativo
+volcano, vulcão
+broad, amplo
+bush, arbusto
+capable, capaz
+cheat, trapacear
+concentrate, concentrar
+conclude, concluir
+confident, confiante
+considerable, considerável
+convey, transmitir
+definite, definitivo
+delight, prazer
+destination, destino
+edge, borda
+instructions, instruções
+path, caminho
+resort, resort
+shadow, sombra
+succeed, ter sucesso
+suspect, suspeitar
+valley, vale
+against, contra
+beach, praia
+damage, dano
+discover, descobrir
+emotion, emoção
+fix, consertar
+identify, identificar
+island, ilha
+ocean, oceano
+perhaps, talvez
+pleasant, agradável
+prevent, prevenir
+rock, pedra
+save, salvar
+smile, sorrir
+step, passo
+still, ainda
+taste, gosto
+throw, jogar
+wave, onda
+citizen, cidadão
+council, conselho
+declare, declarar
+enormous, enorme
+extraordinary, extraordinário
+fog, névoa
+funeral, funeral
+giant, gigante
+impression, impressão
+intention, intenção
+mad, louco
+ought, dever
+resist, resistir
+reveal, revelar
+rid, livrar-se
+sword, espada
+tale, conto
+trap, armadilha
+trial, julgamento
+violent, violento
+admission, admissão
+astronomy, astronomia
+blame, culpar
+chemistry, química
+despite, apesar
+dinosaur, dinossauro
+exhibit, exibir
+fame, fama
+forecast, previsão
+genius, gênio
+gentle, gentil
+geography, geografia
+interfere, interferir
+lightly, levemente
+principal, diretor
+row, fileira
+shelf, prateleira
+spite, malícia
+super, super
+wet, molhado
+abuse, abuso
+afford, poder pagar
+bake, assar
+bean, feijão
+candle, vela
+convert, converter
+debt, dívida
+decrease, diminuir
+fault, culpa
+fund, fundo
+generous, generoso
+ingredient, ingrediente
+insist, insistir
+mess, bagunça
+metal, metal
+monitor, monitorar
+oppose, opor
+passive, passivo
+quantity, quantidade
+sue, processar
+adequate, adequado
+anxiety, ansiedade
+army, exército
+billion, bilhão
+carve, esculpir
+consult, consultar
+emergency, emergência
+fortune, fortuna
+guarantee, garantir
+initial, inicial
+intense, intenso
+lend, emprestar
+peak, pico
+potential, potencial
+pride, orgulho
+proof, prova
+quit, desistir
+spin, girar
+tiny, minúsculo
+tutor, tutor
+apparent, aparente
+blind, cego
+calculate, calcular
+chat, conversar
+commit, cometer
+compose, compor
+dormitory, dormitório
+exhaust, exaurir
+greenhouse, estufa
+ignore, ignorar
+obvious, óbvio
+physics, física
+portion, porção
+remind, lembrar
+secretary, secretário
+severe, grave
+talent, talento
+thesis, tese
+uniform, uniforme
+vision, visão
+absorb, absorver
+boss, chefe
+charitable, caridoso
+committee, comitê
+contract, contrato
+crew, tripulação
+devote, dedicar
+dig, cavar
+dine, jantar
+donate, doar
+double, duplo
+flavor, sabor
+foundation, fundação
+generation, geração
+handle, lidar com
+layer, camada
+mud, lama
+smooth, suave
+soil, solo
+unique, único
+academy, academia
+ancient, antigo
+board, tabuleiro
+century, século
+clue, pista
+concert, concerto
+county, condado
+dictionary, dicionário
+exist, existir
+flat, plano
+gentleman, cavalheiro
+hidden, escondido
+maybe, talvez
+officer, oficial
+original, original
+pound, libra
+process, processo
+publish, publicar
+theater, teatro
+wealth, riqueza
+aim, objetivo
+attach, anexar
+bet, apostar
+carriage, carruagem
+classic, clássico
+commute, deslocar-se
+confirm, confirmar
+criticize, criticar
+differ, diferir
+expense, despesa
+formal, formal
+height, altura
+invent, inventar
+junior, júnior
+labor, trabalho
+mechanic, mecânico
+prime, principal
+shift, turno
+signal, sinal
+sincere, sincero
+ability, habilidade
+agriculture, agricultura
+cartoon, desenho animado
+ceiling, teto
+convince, convencer
+curious, curioso
+delay, atrasar
+diary, diário
+element, elemento
+faith, fé
+grain, grão
+greet, cumprimentar
+investigate, investigar
+joy, alegria
+label, etiqueta
+monk, monge
+odd, estranho
+pause, pausar
+priest, padre
+profession, profissão
+ball, bola
+bottom, fundo
+company, empresa
+drink, beber
+few, poucos
+line, linha
+pet, animal de estimação
+product, produto
+responsible, responsável
+sell, vender
+snake, cobra
+stand, ficar de pé
+strange, estranho
+tea, chá
+test, teste
+tongue, língua
+type, tipo
+were superstitious,
+wait, esperar
+accomplish, realizar
+approve, aprovar
+approximate, aproximado
+barrier, barreira
+detect, detectar
+duty, dever
+elementary, elementar
+failure, fracasso
+gradual, gradual
+immigrant, imigrante
+insert, inserir
+instant, instante
+poverty, pobreza
+pretend, fingir
+rank, classificação
+recognition, reconhecimento
+refrigerate, refrigerar
+rent, alugar
+retire, aposentar
+statistic, estatística
+accident, acidente
+astronaut, astronauta
+awake, acordar
+courage, coragem
+float, flutuar
+grant, conceder
+gravity, gravidade
+jewel, joia
+miner, mineiro
+mineral, mineral
+participate, participar
+permission, permissão
+pour, despejar
+raw, cru
+satellite, satélite
+scale, escala
+skip, pular
+stretch, esticar
+telescope, telescópio
+underground, subterrâneo
+alarm, alarme
+arrest, prender
+award, prêmio
+breed, raça
+bucket, balde
+contest, concurso
+convict, condenar
+festival, festival
+garage, garagem
+journalist, jornalista
+pup, filhote
+qualify, qualificar
+repair, consertar
+resume, currículo
+rob, roubar
+slip, escorregar
+somewhat, um tanto
+stable, estável
+tissue, tecido
+yard, quintal
+best, melhor
+card, cartão
+crowd, multidão
+day, dia
+dish, prato
+easy, fácil
+experience, experiência
+hotel, hotel
+hour, hora
+light, luz
+market, mercado
+plan, plano
+price, preço
+short, curto
+shop, loja
+station, estação
+surprise, surpresa
+system, sistema
+taxi, táxi
+two, dois
+bath, banho
+bend, dobrar
+chew, mastigar
+disabled, deficiente
+fantastic, fantástico
+fiction, ficção
+flag, bandeira
+inspect, inspecionar
+journal, revista
+liquid, líquido
+marvel, maravilha
+overcome, superar
+recall, lembrar
+regret, arrepender
+soul, alma
+sufficient, suficiente
+surgery, cirurgia
+tough, duro
+tube, tubo
+value, valor
+atom, átomo
+beautiful, bonito
+breadth, largura
+comet, cometa
+cover, cobrir
+despair, desespero
+form, forma
+fragment, fragmento
+galaxy, galáxia
+gloom, tristeza
+large, grande
+moon, lua
+radiate, irradiar
+roam, vagar
+solitary, solitário
+spectrum, espectro
+sphere, esfera
+star, estrela
+status, status
+ugly, feio
+accuse, acusar
+adjust, ajustar
+amuse, divertir
+coral, coral
+cotton, algodão
+crash, acidente
+deck, convés
+engage, engajar
+firm, empresa
+fuel, combustível
+grand, grandioso
+hurricane, furacão
+loss, perda
+plain, planície
+reef, recife
+shut, fechar
+strict, estrito
+surf, surfar
+task, tarefa
+zone, zona
+apology, desculpa
+bold, audacioso
+bug, inseto
+capture, capturar
+duke, duque
+expose, expor
+guilty, culpado
+hire, contratar
+innocent, inocente
+language, idioma
+minister, ministro
+ordinary, ordinário
+permanent, permanente
+preserve, preservar
+pronounce, pronunciar
+resemble, assemelhar
+symptom, sintoma
+tobacco, tabaco
+twin, gêmeo
+witch, bruxa
+accompany, acompanhar
+bare, nu
+branch, galho
+breath, respiração
+bridge, ponte
+cast, arremessar
+dare, ousar
+electronic, eletrônico
+inn, pousada
+net, rede
+philosophy, filosofia
+pot, panela
+seed, semente
+sharp, afiado
+sort, classificar
+subtract, subtrair
+tight, apertado
+virtual, virtual
+weigh, pesar
+whisper, sussurrar
+abstract, abstrato
+annual, anual
+clay, argila
+cloth, pano
+curtain, cortina
+deserve, merecer
+feather, pena
+fertile, fértil
+flood, enchente
+furniture, mobília
+grave, túmulo
+ideal, ideal
+intelligence, inteligência
+obtain, obter
+religious, religioso
+romantic, romântico
+shell, concha
+shore, costa
+wheel, roda
+wooden, de madeira
+appliance, eletrodoméstico
+basin, bacia
+broom, vassoura
+caterpillar, lagarta
+cupboard, armário
+delicate, delicado
+emerge, surgir
+handicap, deficiência
+hole, buraco
+hook, gancho
+hop, pular
+laundry, roupa suja
+pursue, perseguir
+reluctant, relutante
+sleeve, manga
+spine, espinha dorsal
+stain, mancha
+strip, tira
+swear, jurar
+swing, balançar
+acre, acre
+afterlife, vida após a morte
+archaeology, arqueologia
+chamber, câmara
+channel, canal
+core, núcleo
+corridor, corredor
+distinct, distinto
+elite, elite
+engineer, engenheiro
+found, fundar
+gap, lacuna
+glory, glória
+interior, interior
+lion, leão
+role, papel
+royal, real
+sole, único
+stairs, escadas
+surface, superfície
+agreement, acordo
+arise, surgir
+benefactor, benfeitor
+blacksmith, ferreiro
+chimney, chaminé
+compensate, compensar
+encounter, encontrar
+exceed, exceder
+forge, forja
+humble, humilde
+iron, ferro
+ladder, escada
+modest, modesto
+occupy, ocupar
+penny, centavo
+preach, pregar
+prosper, prosperar
+province, província
+satisfaction, satisfação
+sustain, sustentar
+acquire, adquirir
+awkward, estranho
+caretaker, zelador
+deceive, enganar
+discourage, desanimar
+fake, falso
+hatred, ódio
+hut, cabana
+inferior, inferior
+lodge, pousada
+neglect, negligenciar
+newcomer, recém-chegado
+offense, ofensa
+overlook, ignorar
+repay, reembolsar
+ridiculous, ridículo
+satisfactory, satisfatório
+shepherd, pastor
+venture, aventura
+wheat, trigo
+alley, beco
+ax, machado
+bunch, cacho
+chore, tarefa doméstica
+decent, decente
+disgraceful, vergonhoso
+elbow, cotovelo
+grateful, grato
+irritate, irritar
+kid, criança
+loose, solto
+offend, ofender
+overnight, durante a noite
+persist, persistir
+pine, pinheiro
+scar, cicatriz
+sensation, sensação
+sled, trenó
+tease, provocar
+valentine, namorado
+acquaint, apresentar
+cemetery, cemitério
+creature, criatura
+curse, maldição
+disguise, disfarce
+fancy, fantasia
+flashlight, lanterna
+hood, capuz
+inhabitant, habitante
+nourish, nutrir
+pirate, pirata
+publication, publicação
+riddle, adivinha
+rot, apodrecer
+shortly, em breve
+skeleton, esqueleto
+spoil, estragar
+starve, passar fome
+thrill, emoção
+wicked, mau
+alert, alerta
+broadcast, transmitir
+bulletin, boletim
+bump, batida
+chop, cortar
+closet, armário
+console, consolar
+district, distrito
+drawer, gaveta
+endure, suportar
+execute, executar
+grasp, agarrar
+rear, traseiro
+senator, senador
+skull, crânio
+stir, mexer
+tap, tocar
+tremendous, tremendo
+underneath, embaixo
+worm, verme
+abandon, abandonar
+ambitious, ambicioso
+bark, casca
+bay, baía
+brilliant, brilhante
+chin, queixo
+complaint, queixa
+deaf, surdo
+enthusiastic, entusiasta
+expedition, expedição
+horizon, horizonte
+loyal, leal
+mayor, prefeito
+mutual, mútuo
+overweight, sobrepeso
+refuge, refúgio
+restore, restaurar
+rub, esfregar
+senses, sentidos
+veterinarian, veterinário
+anniversary, aniversário
+arithmetic, aritmética
+ashamed, envergonhado
+burst, explodir
+carpenter, carpinteiro
+coal, carvão
+couch, sofá
+drip, pingar
+elegant, elegante
+fabric, tecido
+highlands, terras altas
+ivory, marfim
+mill, moinho
+needle, agulha
+polish, polir
+sew, costurar
+shed, galpão
+thread, fio
+trim, aparar
+upwards, para cima
+ally, aliado
+boast, gabar-se
+bounce, quicar
+bully, valentão
+carbohydrate, carboidrato
+crawl, engatinhar
+defeat, derrotar
+dial, discar
+dominant, dominante
+entire, inteiro
+mercy, misericórdia
+nod, acenar
+opponent, oponente
+quarrel, briga
+rival, rival
+sore, dolorido
+sting, ferroar
+strain, tensão
+torture, tortura
+wrestle, lutar
+absence, ausência
+aloud, em voz alta
+bald, careca
+blanket, cobertor
+creep, rastejar
+divorce, divórcio
+imitate, imitar
+infant, bebê
+kidnap, sequestrar
+nap, cochilo
+nowhere, em nenhum lugar
+pat, acariciar
+relief, alívio
+reproduce, reproduzir
+rhyme, rima
+suck, chupar
+urgent, urgente
+vanish, desaparecer
+wagon, vagão
+wrinkle, ruga
+architecture, arquitetura
+basket, cesta
+bloom, florescer
+canoe, canoa
+carpet, tapete
+cousin, primo
+desk, mesa
+gallery, galeria
+guest, convidado
+host, anfitrião
+July, julho
+modern, moderno
+museum, museu
+pink, rosa
+plane, avião
+refrigerator, geladeira
+temperature, temperatura
+theater, teatro
+upper, superior
+welcome, bem-vindo
+anticipate, antecipar
+barrel, barril
+beam, viga
+casual, casual
+caution, cuidado
+contrary, contrário
+deliberate, deliberado
+dissolve, dissolver
+explode, explodir
+fasten, prender
+germ, germe
+kit, kit
+puff, baforada
+rag, trapo
+scatter, espalhar
+scent, perfume
+steel, aço
+swift, rápido
+toss, jogar
+triumph, triunfo
+aboard, a bordo
+bitter, amargo
+bullet, bala
+devil, diabo
+drift, deriva
+enforce, aplicar
+fountain, fonte
+harbor, porto
+inhabit, habitar
+march, marchar
+millionaire, milionário
+port, porto
+sheriff, xerife
+startle, sobressaltar
+sweat, suor
+trigger, gatilho
+unify, unificar
+vessel, navio
+voyage, viagem
+worship, adorar
+apprentice, aprendiz
+assure, assegurar
+bandage, curativo
+bleed, sangrar
+bond, ligação
+chef, chef
+crown, coroa
+departure, partida
+diligent, diligente
+emperor, imperador
+fiber, fibra
+horrible, horrível
+impolite, mal-educado
+kneel, ajoelhar
+luxury, luxo
+massive, maciço
+panic, pânico
+priority, prioridade
+robe, roupão
+scold, repreender
+affair, caso
+assembly, assembleia
+bless, abençoar
+cereal, cereal
+cheerful, alegre
+diameter, diâmetro
+exploit, explorar
+famine, fome
+harvest, colheita
+merry, alegre
+nut, noz
+pardon, perdão
+pharaoh, faraó
+ripe, maduro
+roast, assar
+routine, rotina
+scheme, esquema
+slim, magro
+stove, fogão
+theft, roubo
+adolescent, adolescente
+aptitude, aptidão
+compliment, elogio
+hinder, dificultar
+journalism, jornalismo
+jury, júri
+justice, justiça
+liberty, liberdade
+literary, literário
+pharmacy, farmácia
+pill, pílula
+presume, presumir
+privacy, privacidade
+punishment, punição
+sensible, sensato
+slice, fatia
+sorrow, tristeza
+straw, palha
+swell, inchar
+tidy, arrumado
+affection, afeto
+agency, agência
+ash, cinza
+confine, confinar
+dismiss, dispensar
+erupt, entrar em erupção
+fate, destino
+lava, lava
+miserable, miserável
+navigate, navegar
+originate, originar
+remainder, restante
+retrieve, recuperar
+shallow, raso
+slope, inclinação
+span, extensão
+superstition, superstição
+sympathy, simpatia
+vibrate, vibrar
+wander, vagar
+armor, armadura
+blaze, chama
+boom, explosão
+cliff, penhasco
+flame, chama
+independence, independência
+invasion, invasão
+knight, cavaleiro
+lightning, relâmpago
+rebel, rebelde
+retreat, recuar
+revolution, revolução
+spear, lança
+steep, íngreme
+summit, cume
+thunder, trovão
+troops, tropas
+warrior, guerreiro
+withdraw, retirar
+yield, render
+bench, banco
+daisy, margarida
+dispute, disputa
+empty, vazio
+horror, horror
+incident, incidente
+mist, névoa
+object, objeto
+orphan, órfão
+plot, enredo
+pregnant, grávida
+rage, raiva
+revenge, vingança
+shame, vergonha
+sigh, suspirar
+sneak, esgueirar-se
+spare, sobressalente
+stem, haste
+supper, jantar
+tender, terno
+beneath, abaixo
+cub, filhote
+dawn, amanhecer
+dissatisfied, insatisfeito
+ease, facilidade
+evident, evidente
+hail, granizo
+howl, uivar
+leap, saltar
+magnificent, magnífico
+necessity, necessidade
+outcome, resultado
+pile, pilha
+profound, profundo
+seize, apreender
+squeeze, espremer
+supreme, supremo
+terrific, terrível
+trait, característica
+vital, vital
+attack, atacar
+breast, peito
+cancer, câncer
+cancerous, canceroso
+cell, célula
+cigarette, cigarro
+code, código
+cure, cura
+destruction, destruição
+DNA, DNA
+extensive, extenso
+female, feminino
+furthermore, além disso
+gene, gene
+inherit, herdar
+link, link
+male, masculino
+population, população
+result, resultado
+sugar, açúcar
+accommodate, acomodar
+circus, circo
+coincide, coincidir
+commission, comissão
+dose, dose
+dye, tingir
+extent, extensão
+gender, gênero
+headline, manchete
+informal, informal
+inquire, perguntar
+messenger, mensageiro
+peer, par
+portrait, retrato
+pose, posar
+ranch, rancho
+steer, guiar
+stripe, listra
+tame, domar
+tempt, tentar
+ban, proibir
+cautious, cauteloso
+confess, confessar
+cottage, chalé
+daytime, durante o dia
+desperate, desesperado
+exhausting, exaustivo
+fade, desaparecer
+fierce, feroz
+gamble, apostar
+lawn, gramado
+mow, cortar
+outlaw, fora da lei
+prospect, perspectiva
+purse, bolsa
+rod, vara
+seldom, raramente
+shave, barbear
+terrified, aterrorizado
+wizard, mago
+abroad, no exterior
+airline, companhia aérea
+audience, plateia
+bargain, pechincha
+brief, breve
+currency, moeda
+data, dados
+domestic, doméstico
+draft, rascunho
+gather, reunir
+hobby, passatempo
+income, renda
+jet, jato
+maximum, máximo
+official, oficial
+recommend, recomendar
+refer, referir
+remote, remoto
+sleepless, insone
+volume, volume
+circulate, circular
+consequent, consequente
+derive, derivar
+drown, afogar
+dynasty, dinastia
+fraction, fração
+frost, geada
+illusion, ilusão
+invade, invadir
+lieutenant, tenente
+marine, marinho
+merit, mérito
+navy, marinha
+polar, polar
+ray, raio
+resign, demitir
+suicide, suicídio
+tremble, tremer
+underlying, subjacente
+via, via
+alter, alterar
+aside, de lado
+autumn, outono
+blend, misturar
+collapse, colapso
+crush, esmagar
+curve, curva
+disgusting, repugnante
+drain, esgoto
+embrace, abraçar
+envy, inveja
+fireworks, fogos de artifício
+flour, farinha
+fuse, fusível
+ginger, gengibre
+jealous, ciumento
+paste, pasta
+receipt, recibo
+wipe, limpar
+wire, fio
+acknowledge, reconhecer
+ambassador, embaixador
+blonde, loiro
+conquer, conquistar
+drag, arrastar
+exaggerate, exagerar
+heritage, herança
+insult, insulto
+meanwhile, enquanto isso
+necklace, colar
+noble, nobre
+precious, precioso
+prejudice, preconceito
+rumor, rumor
+sin, pecado
+spectacle, espetáculo
+stack, pilha
+suspicious, suspeito
+tin, lata
+vase, vaso
+ache, dor
+arctic, ártico
+canal, canal
+chemist, químico
+chill, frio
+congress, congresso
+dairy, laticínio
+descend, descer
+grocer, dono de mercearia
+hesitate, hesitar
+institution, instituição
+jog, correr
+merchant, comerciante
+poke, cutucar
+postpone, adiar
+splash, respingo
+stubborn, teimoso
+suburb, subúrbio
+tide, maré
+tragedy, tragédia
+bomb, bomba
+certificate, certificado
+circumstance, circunstância
+coffin, caixão
+cope, lidar
+criticism, crítica
+devastate, devastar
+frown, franzir a testa
+gaze, olhar fixamente
+glance, vislumbre
+grief, luto
+groom, noivo
+license, licença
+microscope, microscópio
+nuclear, nuclear
+portray, retratar
+rotate, girar
+souvenir, lembrança
+submarine, submarino
+trace, rastrear
+coastline, litoral
+deter, deter
+devise, inventar
+distance, distância
+expertise, especialização
+fracture, fratura
+headache, dor de cabeça
+implement, implementar
+insight, percepção
+limb, membro
+might, poder
+optimism, otimismo
+proficient, proficiente
+raft, jangada
+ridge, cume
+shoulder, ombro
+shove, empurrar
+spouse, cônjuge
+thrust, empurrar
+tolerate, tolerar
+accountable, responsável
+addictive, viciante
+agenda, agenda
+coin, moeda
+correlate, correlacionar
+depression, depressão
+digital, digital
+importance, importância
+keyboard, teclado
+loneliness, solidão
+media, mídia
+platform, plataforma
+poor, pobre
+presence, presença
+subject, assunto
+surge, aumento
+survey, pesquisa
+target, alvo
+trend, tendência
+validate, validar
+carbon, carbono
+carbon, carbono
+dust, poeira
+emit, emitir
+enable, habilitar
+grind, moer
+heal, curar
+integrate, integrar
+leading, líder
+moreover, além disso
+object, objeto
+pollutant, poluente
+powder, pó
+prompt, rápido
+reject, rejeitar
+skeptic, cético
+substance, substância
+substantially, substancialmente
+ton, tonelada
+transport, transportar
+align, alinhar
+authority, autoridade
+barn, celeiro
+betray, trair
+Bible, Bíblia
+Catholic, católico
+cooperate, cooperar
+detain, deter
+exit, saída
+exceptional, excepcional
+flee, fugir
+network, rede
+outrage, indignação
+parish, paróquia
+passage, passagem
+pastor, pastor
+patrol, patrulha
+raid, ataque
+rail, trilho
+tunnel, túnel
+comfortable, confortável
+education, educação
+encouragement, encorajamento
+endorse, endossar
+equal, igual
+face, rosto
+field, campo
+foster, promover
+guidance, orientação
+hold, segurar
+inclusion, inclusão
+inspire, inspirar
+mere, mero
+position, posição
+power, poder
+responsibility, responsabilidade
+soar, voar alto
+tool, ferramenta
+vocal, vocal
+workplace, local de trabalho
+academic, acadêmico
+acceptance, aceitação
+array, variedade
+blur, borrar
+café, café
+canvas, tela
+cinema, cinema
+class, classe
+distinctive, distinto
+key, chave
+movement, movimento
+practice, prática
+realistic, realista
+reflection, reflexão
+rule, regra
+stroke, pincelada
+sunlight, luz do sol
+traditional, tradicional
+unlike, diferente de
+width, largura
+anthem, hino
+beyond, além
+determination, determinação
+fighting, luta
+joint, articulação
+landing, aterrissagem
+mark, marca
+mobilize, mobilizar
+nation, nação
+originally, originalmente
+outbreak, surto
+pray, rezar
+prisoner, prisioneiro
+sacrifice, sacrifício
+silence, silêncio
+thus, assim
+tribute, tributo
+victory, vitória
+wild, selvagem
+wound, ferida
+assimilate, assimilar
+attempt, tentativa
+case, caso
+cease, cessar
+danger, perigo
+devastating, devastador
+diversity, diversidade
+earthquake, terremoto
+endangered, ameaçado
+extinction, extinção
+forever, para sempre
+generally, geralmente
+genocide, genocídio
+hit, bater
+lose, perder
+native, nativo
+percent, por cento
+reason, razão
+reference, referência
+urban, urbano
+burn, queimar
+check, verificar
+coconut, coco
+epilepsy, epilepsia
+fat, gordura
+gain, ganhar
+glucose, glicose
+high, alto
+keep, manter
+known, conhecido
+liver, fígado
+low, baixo
+management, gerenciamento
+metabolic, metabólico
+oil, óleo
+olive, azeitona
+performance, desempenho
+powerful, poderoso
+starch, amido
+summary, resumo
+analytic, analítico
+area, área
+bachelor, solteiro
+cognitive, cognitivo
+collision, colisão
+competent, competente
+diploma, diploma
+excel, se destacar
+geology, geologia
+integral, integral
+intellect, intelecto
+job, trabalho
+keen, entusiasmado
+minimum, mínimo
+psychology, psicologia
+radioactive, radioativo
+relativity, relatividade
+sociology, sociologia
+theoretical, teórico
+weak, fraco
+administrator, administrador
+affluent, abastado
+audit, auditoria
+automate, automatizar
+bribe, subornar
+corrupt, corrupto
+dispose, descartar
+headquarters, sede
+incentive, incentivo
+infrastructure, infraestrutura
+legislate, legislar
+legitimate, legítimo
+manipulate, manipular
+merchandise, mercadoria
+retail, varejo
+revenue, receita
+rubbish, lixo
+subsidy, subsídio
+transaction, transação
+violate, violar
+assess, avaliar
+astonish, surpreender
+commence, começar
+essence, essência
+extract, extrair
+fabulous, fabuloso
+haste, pressa
+impulse, impulso
+inhibit, inibir
+latter, último
+molecule, molécula
+ongoing, contínuo
+precise, preciso
+proximity, proximidade
+publicity, publicidade
+remedy, remédio
+significance, significância
+subsequent, subsequente
+synthetic, sintético
+terminal, terminal
+acute, agudo
+aggression, agressão
+biography, biografia
+boost, impulsionar
+clap, aplaudir
+classical, clássico
+compel, obrigar
+creation, criação
+dominance, dominância
+gorgeous, magnífico
+inevitable, inevitável
+legacy, legado
+masterpiece, obra-prima
+multiple, múltiplo
+narrate, narrar
+notorious, notório
+overall, geral
+partiality, parcialidade
+spontaneous, espontâneo
+virtue, virtude
+aspect, aspecto
+asset, ativo
+assignment, tarefa
+awareness, consciência
+bud, broto
+coordinate, coordenar
+credit, crédito
+disprove, refutar
+humanitarian, humanitário
+hypothesis, hipótese
+informative, informativo
+optic, óptico
+premise, premissa
+rack, prateleira
+Renaissance, Renascimento
+spatial, espacial
+specify, especificar
+tie, gravata
+undertake, empreender
+wax, cera
+addict, viciado
+archeological, arqueológico
+archeology, arqueologia
+brainstorm, brainstorming
+budget, orçamento
+chaotic, caótico
+cite, citar
+correspond, corresponder
+courtyard, pátio
+estate, propriedade
+fraud, fraude
+hydrogen, hidrogênio
+integrity, integridade
+outlook, perspectiva
+parachute, paraquedas
+prehistoric, pré-histórico
+proponent, proponente
+refine, refinar
+restrict, restringir
+team, equipe
+aggregate, agregar
+antibiotic, antibiótico
+circuit, circuito
+complement, complementar
+compress, comprimir
+database, banco de dados
+equivalent, equivalente
+immune, imune
+input, entrada
+intimate, íntimo
+magnet, ímã
+metabolism, metabolismo
+microchip, microchip
+phase, fase
+pinch, beliscar
+prevalent, prevalente
+quantum, quântico
+ratio, proporção
+spiral, espiral
+viral, viral
+acid, ácido
+administration, administração
+administrative, administrativo
+biotechnology, biotecnologia
+cholesterol, colesterol
+coalition, coalizão
+deceptive, enganoso
+diabetes, diabetes
+eliminate, eliminar
+erosion, erosão
+ethics, ética
+explicit, explícito
+framework, estrutura
+manufacture, fabricar
+mechanism, mecanismo
+minimize, minimizar
+nectar, néctar
+notion, noção
+regime, regime
+straightforward, direto
+bankrupt, falido
+conform, conformar
+employ, empregar
+expel, expulsar
+extension, extensão
+forthcoming, próximo
+furnish, mobiliar
+hygiene, higiene
+hygienic, higiênico
+landlord, proprietário
+lease, arrendar
+mandatory, obrigatório
+mend, consertar
+mortgage, hipoteca
+personnel, pessoal
+plumbing, encanamento
+quote, citar
+tenant, inquilino
+utility, utilidade
+whereby, pelo qual
+adapt, adaptar
+biological, biológico
+cellular, celular
+dynamic, dinâmico
+fantasy, fantasia
+heredity, hereditariedade
+internal, interno
+minimal, mínimo
+pioneer, pioneiro
+prescribe, prescrever
+respective, respectivo
+rigid, rígido
+sequence, sequência
+similar, similar
+substitute, substituto
+surgeon, cirurgião
+therapy, terapia
+transfer, transferir
+transition, transição
+transplant, transplante
+astrology, astrologia
+couple, casal
+deviate, desviar
+differentiate, diferenciar
+disrupt, interromper
+equation, equação
+err, errar
+erroneous, errôneo
+frantic, frenético
+inadvertent, inadvertido
+improvise, improvisar
+latitude, latitude
+mariner, marinheiro
+multitude, multidão
+nuisance, incômodo
+permanence, permanência
+revolve, girar
+soothe, acalmar
+stranded, encalhado
+technique, técnica
+absurd, absurdo
+aristocracy, aristocracia
+aristocrat, aristocrata
+attire, traje
+craze, moda
+denote, denotar
+enlarge, ampliar
+excess, excesso
+feminine, feminino
+hierarchy, hierarquia
+pad, almofada
+partner, parceiro
+predominant, predominante
+protocol, protocolo
+reputable, respeitável
+signify, significar
+strap, alça
+style, estilo
+tangle, emaranhado
+vanity, vaidade
+ashore, em terra
+contradict, contradizer
+counterpart, homólogo
+devoid, desprovido
+diverge, divergir
+embryo, embrião
+finally, finalmente
+gazette, gazeta
+homogeneous, homogêneo
+individual, indivíduo
+major, principal
+obstruct, obstruir
+plunge, mergulhar
+prolong, prolongar
+publicize, divulgar
+surplus, excedente
+survive, sobreviver
+theorize, teorizar
+verify, verificar
+vigorous, vigoroso
+altar, altar
+arthritis, artrite
+botany, botânica
+credible, credível
+deceased, falecido
+deception, engano
+document, documento
+dung, esterco
+dusk, entardecer
+gratify, satisfazer
+hone, afiar
+interpret, interpretar
+motive, motivo
+pneumonia, pneumonia
+psychic, psíquico
+psychotic, psicótico
+scope, escopo
+sinister, sinistro
+strife, conflito
+text, texto
+artery, artéria
+deterioration, deterioração
+elusive, esquivo
+ensure, garantir
+induce, induzir
+inseparable, inseparável
+invalid, inválido
+magnify, ampliar
+mainstream, corrente principal
+microbe, micróbio
+minor, menor
+negligible, negligenciável
+paralysis, paralisia
+pest, praga
+prevail, prevalecer
+pursuit, busca
+rupture, ruptura
+savage, selvagem
+stun, atordoar
+susceptible, suscetível
+advocate, defensor
+albeit, embora
+authorize, autorizar
+civilian, civil
+commodity, mercadoria
+communicate, comunicar
+conquest, conquista
+disclose, revelar
+dynamics, dinâmica
+enroll, matricular
+envious, invejoso
+festive, festivo
+indicate, indicar
+lentil, lentilha
+marshal, marechal
+morale, moral
+mood, humor
+prophecy, profecia
+senate, senado
+unrest, agitação
+certify, certificar
+coherent, coerente
+collaborate, colaborar
+compile, compilar
+curb, controlar
+diagnose, diagnosticar
+enact, promulgar
+federation, federação
+gross, bruto
+humane, humano
+needy, necessitado
+onset, início
+pledge, prometer
+prohibit, proibir
+render, renderizar
+smallpox, varíola
+transform, transformar
+transmit, transmitir
+vow, voto
+widespread, generalizado
+adhere, aderir
+administer, administrar
+compassionate, compassivo
+contaminate, contaminar
+deficiency, deficiência
+emphasis, ênfase
+epidemic, epidemia
+hazard, risco
+imperative, imperativo
+intestines, intestinos
+manifest, manifestar
+overcrowded, superlotado
+practitioner, praticante
+provision, provisão
+replenish, reabastecer
+reverse, reverter
+sterile, estéril
+upgrade, atualizar
+viable, viável
+voluntary, voluntário
+airway, via aérea
+Almighty, Todo-Poderoso
+advent, advento
+cycle, ciclo
+definitive, definitivo
+equate, equiparar
+found, fundar
+ideology, ideologia
+inhale, inalar
+invoke, invocar
+lunar, lunar
+novelty, novidade
+outmoded, obsoleto
+personalize, personalizar
+psychiatric, psiquiátrico
+psychiatry, psiquiatria
+reflex, reflexo
+seizure, convulsão
+session, sessão
+utensil, utensílio
+allocate, alocar
+appetizing, apetitoso
+assign, atribuir
+cavity, cavidade
+clockwise, no sentido horário
+concentric, concêntrico
+courtesy, cortesia
+crisp, crocante
+discord, discórdia
+generate, gerar
+item, item
+interchange, intercâmbio
+multicultural, multicultural
+omission, omissão
+oversee, supervisionar
+pierce, perfurar
+select, selecionar
+structure, estrutura
+visual, visual
+wavy, ondulado
+conversion, conversão
+cram, estudar intensamente
+defer, adiar
+export, exportar
+fume, fumegar
+habitual, habitual
+justify, justificar
+notwithstanding, não obstante
+output, saída
+overpopulation, superpopulação
+patent, patente
+penalize, penalizar
+petroleum, petróleo
+region, região
+scrap, refugo
+sector, setor
+subscribe, assinar
+subsist, subsistir
+suspend, suspender
+synthesis, síntese
+acrobat, acrobata
+advocacy, defesa
+communal, comunal
+fluid, fluido
+harmonize, harmonizar
+industrious, industrioso
+inventive, inventivo
+Mandarin, mandarim
+metropolitan, metropolitano
+mimic, imitar
+misguided, equivocado
+rehearse, ensaiar
+resourceful, engenhoso
+scorn, desdenhar
+sensory, sensorial
+statute, estatuto
+technical, técnico
+veteran, veterano
+villain, vilão
+vine, videira
+aroma, aroma
+beverage, bebida
+cluster, aglomerado
+combine, combinar
+condensed, condensado
+contemporary, contemporâneo
+cultivate, cultivar
+divine, divino
+humid, úmido
+odor, odor
+palate, paladar
+paradise, paraíso
+plantation, plantação
+rapid, rápido
+rate, taxa
+soothing, calmante
+subtle, sutil
+texture, textura
+toxic, tóxico
+vary, variar
+admiral, almirante
+arc, arco
+character, personagem
+conscience, consciência
+escape, escapar
+fiery, ardente
+flesh, carne
+grapefruit, toranja
+hay, feno
+horrified, horrorizado
+kerosene, querosene
+loop, laço
+middle, meio
+paddle, remo
+sour, azedo
+stake, estaca
+steward, comissário
+string, corda
+thorn, espinho
+wreck, naufrágio
+admonish, admoestar
+audible, audível
+awesome, incrível
+beware, cuidado
+brag, gabar-se
+conscious, consciente
+disagree, discordar
+echo, eco
+eventual, eventual
+hint, dica
+idiot, idiota
+immense, imenso
+indirect, indireto
+option, opção
+pastime, passatempo
+perfect, perfeito
+pinpoint, identificar
+switch, mudar
+thorough, completo
+torment, tormento
+abrupt, abrupto
+agony, agonia
+assassin, assassino
+beard, barba
+beast, besta
+chapel, capela
+commentator, comentarista
+con, golpe
+consensus, consenso
+conspiracy, conspiração
+coup, golpe
+cynical, cínico
+dome, cúpula
+exclaim, exclamar
+forum, fórum
+glamour, glamour
+harass, assediar
+illuminate, iluminar
+inflame, inflamar
+melody, melodia
+awhile, por um momento
+cyberspace, ciberespaço
+edit, editar
+essay, redação
+evaluate, avaliar
+faint, desmaiar
+global, global
+gymnasium, ginásio
+highlight, destacar
+ignorant, ignorante
+index, índice
+lecture, palestra
+moral, moral
+operate, operar
+private, privado
+recent, recente
+resolution, resolução
+semester, semestre
+typewritten, datilografado
+weird, estranho
+accustom, acostumar
+alpha, alfa
+arouse, despertar
+articulate, articular
+buzz, zumbido
+clash, confronto
+classification, classificação
+cling, agarrar
+compliance, conformidade
+comprehend, compreender
+congregate, reunir
+custody, custódia
+disperse, dispersar
+embody, incorporar
+empirical, empírico
+exclusion, exclusão
+flock, rebanho
+graze, pastar
+intelligent, inteligente
+jungle, selva
+account, conta
+architect, arquiteto
+conceal, esconder
+crime, crime
+deed, ação
+gratitude, gratidão
+habitat, habitat
+intervene, intervir
+landmark, ponto de referência
+legal, legal
+memorable, memorável
+oblige, obrigar
+offense, ofensa
+proclaim, proclamar
+rally, comício
+resolve, resolver
+resource, recurso
+sentence, frase
+volunteer, voluntário
+witness, testemunha
+access, acesso
+conduct, conduta
+constant, constante
+crack, fissura
+device, dispositivo
+enclose, incluir
+grip, agarrar
+halt, parar
+impending, iminente
+influence, influência
+law, lei
+mode, modo
+perspire, transpirar
+replace, substituir
+snap, estalar
+sly, astuto
+tend, cuidar
+valid, válido
+version, versão
+whatsoever, qualquer que seja
+alongside, ao lado
+appetite, apetite
+assist, assistir
+breeze, brisa
+defy, desafiar
+display, exibir
+efficient, eficiente
+feeble, fraco
+forgive, perdoar
+lively, animado
+majestic, majestoso
+nor, nem
+outraged, indignado
+pessimistic, pessimista
+relationship, relacionamento
+slap, bofetada
+smash, esmagar
+successful, bem-sucedido
+wage, salário
+whereas, enquanto que
+animate, animar
+classify, classificar
+concede, conceder
+concept, conceito
+construct, construir
+decade, década
+diagram, diagrama
+ferry, balsa
+handy, útil
+isolate, isolar
+longing, saudade
+numerous, numeroso
+particle, partícula
+plea, apelo
+refrain, abster-se
+review, revisar
+sophisticated, sofisticado
+surrender, render-se
+upright, ereto
+worthwhile, válido
+alliance, aliança
+applause, aplauso
+armed, armado
+authoritative, autoritário
+bravery, bravura
+ceremony, cerimônia
+culture, cultura
+defense, defesa
+detail, detalhe
+diverse, diverso
+enchant, encantar
+equip, equipar
+exception, exceção
+genre, gênero
+impact, impacto
+lure, atrair
+obstacle, obstáculo
+shelter, abrigo
+supply, fornecimento
+vain, vão
+alternative, alternativa
+avenue, avenida
+belly, barriga
+bid, licitação
+blow, golpe
+conflict, conflito
+continent, continente
+current, atual
+disrespect, desrespeito
+enthusiasm, entusiasmo
+harsh, severo
+lean, magro
+meantime, enquanto isso
+mischief, travessura
+muscle, músculo
+rescue, resgatar
+succession, sucessão
+terrain, terreno
+timid, tímido
+violence, violência
+affect, afetar
+autograph, autógrafo
+bead, conta
+brew, fermentar
+charm, charme
+destiny, destino
+equipment, equipamento
+horn, chifre
+irritable, irritável
+lag, atraso
+nightmare, pesadelo
+nutritious, nutritivo
+protein, proteína
+signature, assinatura
+stuff, coisas
+subconscious, subconsciente
+van, van
+warn, avisar
+workout, treino
+zoom, zoom
+brick, tijolo
+crumble, desmoronar
+dough, massa
+express, expressar
+fist, punho
+flexible, flexível
+flush, corar
+injure, machucar
+lump, caroço
+mixture, mistura
+reconcile, reconciliar
+ruin, arruinar
+shatter, estilhaçar
+shutter, obturador
+sift, peneirar
+slight, leve
+sparkle, brilhar
+sprinkle, polvilhar
+stale, velho
+utter, proferir
+although, embora
+apply, aplicar
+await, aguardar
+beloved, amado
+climate, clima
+complain, reclamar
+confuse, confundir
+due, devido
+establish, estabelecer
+furnace, forno
+leash, coleira
+mature, maduro
+measure, medir
+midst, meio
+misery, miséria
+powerless, impotente
+prior, anterior
+research, pesquisa
+spaceship, nave espacial
+variety, variedade
+altogether, completamente
+bind, amarrar
+bruise, hematoma
+custom, costume
+disobedient, desobediente
+foresee, prever
+glimpse, vislumbre
+hoop, aro
+misfortune, infortúnio
+negative, negativo
+per, por
+plead, suplicar
+rip, rasgar
+sake, bem
+scrape, raspar
+source, fonte
+stern, severo
+stitch, ponto
+thump, bater
+vehement, veemente
+ailing, doente
+alike, semelhante
+appall, horrorizar
+bathe, banhar
+bounds, limites
+critique, crítica
+demography, demografia
+diagnosis, diagnóstico
+dip, mergulhar
+distress, angústia
+fever, febre
+grim, sombrio
+gut, intestino
+helmet, capacete
+herb, erva
+militant, militante
+miracle, milagre
+mourn, lamentar
+nonsense, absurdo
+physician, médico
+accent, sotaque
+barber, barbeiro
+basement, porão
+blank, em branco
+blink, piscar
+choir, coro
+comic, cômico
+complicate, complicar
+decline, declinar
+errand, recado
+glove, luva
+hermit, eremita
+justly, justamente
+leather, couro
+ponder, ponderar
+reserve, reservar
+script, roteiro
+search, pesquisar
+slam, bater
+staircase, escadaria
+afflicted, aflito
+aisle, corredor
+atmosphere, atmosfera
+author, autor
+breakdown, colapso
+cargo, carga
+chapter, capítulo
+connect, conectar
+etc., etc.
+flip, virar
+idle, ocioso
+notify, notificar
+pea, ervilha
+raisin, uva passa
+retain, reter
+state, estado
+tray, bandeja
+unfortunate, infeliz
+vivid, vívido
+vomit, vomitar
+ambition, ambição
+ambulance, ambulância
+ankle, tornozelo
+cabin, cabana
+calendar, calendário
+calorie, caloria
+cave, caverna
+constantly, constantemente
+contingent, contingente
+deadline, prazo
+exert, exercer
+flank, flanco
+fond, gostar
+forbid, proibir
+haul, rebocar
+impair, prejudicar
+impatient, impaciente
+mid, meio
+nutrition, nutrição
+optimist, otimista
+background, fundo
+bait, isca
+chronicle, crônica
+copper, cobre
+disease, doença
+folklore, folclore
+infect, infectar
+itch, coceira
+literature, literatura
+millennium, milênio
+myth, mito
+promote, promover
+relate, relacionar
+religion, religião
+sum, soma
+teller, contador
+trustworthy, confiável
+update, atualizar
+vein, veia
+venom, veneno
+charity, caridade
+commerce, comércio
+condemn, condenar
+cozy, aconchegante
+deplete, esgotar
+economy, economia
+empire, império
+goods, mercadorias
+heed, atentar
+hitchhike, fazer carona
+mock, zombar
+neutral, neutro
+persecute, perseguir
+pity, pena
+reduce, reduzir
+scribe, escriba
+temper, temperamento
+throne, trono
+unity, unidade
+victor, vencedor
+accurate, preciso
+analyze, analisar
+asteroid, asteroide
+controversy, controvérsia
+evolve, evoluir
+factor, fator
+genetic, genético
+genome, genoma
+identical, idêntico
+intellectual, intelectual
+majority, maioria
+mammal, mamífero
+multiply, multiplicar
+offspring, descendente
+pesticide, pesticida
+regulate, regular
+reinforce, reforçar
+stricken, atingido
+vast, vasto
+vegetarian, vegetariano
+bowl, tigela
+cooking, culinária
+dense, denso
+dignity, dignidade
+dominate, dominar
+earthen, de barro
+hostile, hostil
+incorrect, incorreto
+intake, ingestão
+likewise, igualmente
+machine, máquina
+medication, medicação
+obscure, obscuro
+oppress, oprimir
+peel, descascar
+prescription, receita
+progress, progresso
+sandy, arenoso
+shortage, escassez
+skillful, habilidoso
+aircraft, aeronave
+celebrity, celebridade
+concrete, concreto
+decisive, decisivo
+esteemed, estimado
+ethical, ético
+extinct, extinto
+hardy, resistente
+institute, instituto
+jealousy, ciúme
+migrate, migrar
+nurture, nutrir
+overhead, aéreo
+principle, princípio
+rural, rural
+secluded, isolado
+species, espécie
+swamp, pântano
+traverse, atravessar
+zoology, zoologia
+accordingly, consequentemente
+anchor, âncora
+cause, causa
+context, contexto
+designate, designar
+distort, distorcer
+dock, doca
+energy, energia
+frequent, frequente
+gears, engrenagens
+genuine, genuíno
+grease, graxa
+knowledge, conhecimento
+omit, omitir
+offset, compensar
+overlap, sobrepor
+secondhand, em segunda mão
+skill, habilidade
+slot, encaixe
+tactic, tática
+beneficial, benéfico
+birthplace, lugar de nascimento
+capacity, capacidade
+comparative, comparativo
+comprehensive, abrangente
+conserve, conservar
+crucial, crucial
+cumulative, cumulativo
+deposit, depósito
+distribute, distribuir
+equator, equador
+exotic, exótico
+federal, federal
+formation, formação
+frequency, frequência
+objective, objetivo
+oxygen, oxigênio
+rainforest, floresta tropical
+strategy, estratégia
+wooded, arborizado
+avail, aproveitar
+define, definir
+dread, temer
+expand, expandir
+fundamental, fundamental
+horrifying, horripilante
+incredulous, incrédulo
+linger, demorar
+organism, organismo
+paraphrase, parafrasear
+plague, praga
+presently, atualmente
+random, aleatório
+riot, tumulto
+scribble, rabiscar
+shrine, santuário
+solitude, solidão
+stark, severo
+summon, convocar
+worsen, piorar
+automobile, automóvel
+candidate, candidato
+confidential, confidencial
+corporate, corporativo
+enhance, melhorar
+era, era
+guideline, diretriz
+incorporate, incorporar
+interact, interagir
+interval, intervalo
+mobile, móvel
+modify, modificar
+parallel, paralelo
+phenomenon, fenômeno
+pollute, poluir
+ridicule, ridicularizar
+solar, solar
+territory, território
+tournament, torneio
+transportation, transporte
+bill, conta
+boundary, fronteira
+chaos, caos
+consistent, consistente
+cyclone, ciclone
+doomed, condenado
+heir, herdeiro
+martial, marcial
+organic, orgânico
+poultry, aves
+scramble, scramble
+sergeant, sargento
+sheer, puro
+stance, postura
+telegraph, telégrafo
+textile, têxtil
+tornado, tornado
+typhoon, tufão
+wail, uivar
+wardrobe, guarda-roupa
+adverse, adverso
+alternate, alternar
+biodegradable, biodegradável
+boxed, embalado
+choke, engasgar
+convenient, conveniente
+discard, descartar
+dolphin, golfinho
+ecologically, ecologicamente
+fatal, fatal
+incidence, incidência
+municipal, municipal
+overuse, uso excessivo
+pond, lagoa
+recycle, reciclar
+reusable, reutilizável
+stuffed, recheado
+tragic, trágico
+utilize, utilizar
+whale, baleia
+amateur, amador
+ambiguous, ambíguo
+anonymous, anônimo
+attain, alcançar
+autonomy, autonomia
+concession, concessão
+decay, decair
+dwell, habitar
+enlighten, iluminar
+enrich, enriquecer
+flourish, florescer
+geometry, geometria
+gleam, brilhar
+greed, ganância
+harmony, harmonia
+indigenous, indígena
+jurisdiction, jurisdição
+parade, desfile
+statue, estátua
+virgin, virgem
+abnormal, anormal
+absent, ausente
+adjacent, adjacente
+aluminum, alumínio
+applicable, aplicável
+artificial, artificial
+bicycle, bicicleta
+broker, corretor
+bureaucracy, burocracia
+configure, configurar
+consolidate, consolidar
+convenience, conveniência
+deduct, deduzir
+deem, considerar
+entrepreneur, empresário
+evenly, uniformemente
+fiscal, fiscal
+franchise, franquia
+ideological, ideológico
+robot, robô
+abbey, abadia
+abundant, abundante
+adjoin, ser adjacente
+ample, amplo
+arid, árido
+cathedral, catedral
+crisis, crise
+deprive, privar
+drought, seca
+eligible, elegível
+fast, rápido
+grumble, resmungar
+inland, interior
+moisture, umidade
+nonetheless, no entanto
+oath, juramento
+prairie, pradaria
+rugged, acidentado
+scarce, escasso
+speculate, especular
+aquatic, aquático
+biosphere, biosfera
+bizarre, bizarro
+Celsius, celsius
+coarse, grosseiro
+companion, companheiro
+digest, digerir
+duration, duração
+ecology, ecologia
+feat, façanha
+infinite, infinito
+nucleus, núcleo
+parasite, parasita
+prominent, proeminente
+repetitive, repetitivo
+reproductive, reprodutivo
+temperate, temperado
+tolerance, tolerância
+undergo, passar por
+vulnerable, vulnerável
+archaic, arcaico
+brass, latão
+capitalism, capitalismo
+component, componente
+dependence, dependência
+diminish, diminuir
+drawback, desvantagem
+impose, impor
+industry, indústria
+managerial, gerencial
+medieval, medieval
+obsolete, obsoleto
+oriented, orientado
+peninsula, península
+prestige, prestígio
+proportion, proporção
+radical, radical
+refute, refutar
+spectacular, espetacular
+weave, tecer
+accountant, contador
+capitalist, capitalista
+contempt, desprezo
+crop, colheita
+dedicate, dedicar
+ditch, vala
+enterprise, empresa
+finance, finanças
+indifferent, indiferente
+irrigate, irrigar
+maximize, maximizar
+monetary, monetário
+precaution, precaução
+preliminary, preliminar
+saturate, saturar
+simplicity, simplicidade
+sow, semear
+spade, pá
+tomato, tomate
+upcoming, próximo
+anthropology, antropologia
+applaud, aplaudir
+appoint, nomear
+compatible, compatível
+competence, competência
+confer, conferir
+consecutive, consecutivo
+crude, bruto
+cube, cubo
+feedback, feedback
+ignorance, ignorância
+masculine, masculino
+monument, monumento
+muscular, muscular
+posture, postura
+situate, situar
+supervise, supervisionar
+symmetry, simetria
+tattoo, tatuagem
+undergraduate, graduando
+cater, servir
+considerate, atencioso
+consumption, consumo
+criteria, critérios
+crust, crosta
+entitle, intitular
+escort, escolta
+external, externo
+facility, instalação
+faculty, faculdade
+heap, monte
+hemisphere, hemisfério
+hound, cão de caça
+impersonal, impessoal
+lick, lamber
+ornament, ornamento
+pedestrian, pedestre
+sanctuary, santuário
+spectator, espectador
+yell, gritar
+accessory, acessório
+acquisition, aquisição
+cardboard, papelão
+dilemma, dilema
+elaborate, elaborar
+exact, exato
+facilitate, facilitar
+fleet, frota
+grid, grade
+import, importar
+infer, inferir
+inflate, inflar
+innate, inato
+marble, mármore
+mast, mastro
+nausea, náusea
+naval, naval
+pouch, bolsa
+saturated, saturado
+update, atualizar
+attorney, advogado
+chronic, crônico
+discipline, disciplina
+donor, doador
+fellow, companheiro
+gossip, fofoca
+graduate, graduado
+graffiti, grafite
+guardian, guardião
+implicate, implicar
+kin, parente
+referee, árbitro
+sever, cortar
+shaft, eixo
+stab, esfaquear
+stimulus, estímulo
+suspicion, suspeita
+terminate, terminar
+theme, tema
+tuition, mensalidade
+aggressive, agressivo
+amnesty, anistia
+arena, arena
+auditorium, auditório
+captive, cativo
+combat, combate
+commonplace, comum
+compound, composto
+corps, corpo
+distract, distrair
+dumb, mudo
+foe, inimigo
+hack, hackear
+meditate, meditar
+nick, corte
+provoke, provocar
+realm, reino
+reign, reinar
+rust, ferrugem
+sacred, sagrado
+aesthetic, estético
+arrogant, arrogante
+bias, viés
+canyon, canyon
+creek, riacho
+drill, broca
+executive, executivo
+fatigue, fadiga
+incline, inclinar
+nasty, nojento
+perceive, perceber
+primate, primata
+primitive, primitivo
+stereotype, estereótipo
+sticky, pegajoso
+termite, cupim
+thereby, assim
+trail, trilha
+twig, graveto
+welfare, bem-estar
+behalf, em nome de
+flap, aba
+glacier, geleira
+globe, globo
+horizontal, horizontal
+hum, zumbir
+inventory, inventário
+inward, para dentro
+loaf, pão
+oracle, oráculo
+orbit, órbita
+overview, visão geral
+preview, pré-visualização
+previous, anterior
+provide, fornecer
+recur, recorrer
+relevant, relevante
+rite, rito
+stall, barraca
+supernatural, sobrenatural
+aquarium, aquário
+arbitrary, arbitrário
+autobiography, autobiografia
+convention, convenção
+gracious, gracioso
+improve, melhorar
+insulate, isolar
+intrigue, intrigar
+longevity, longevidade
+misplace, extraviar
+naughty, levado
+norm, norma
+orangutan, orangotango
+overload, sobrecarregar
+philanthropy, filantropia
+probe, sonda
+recipient, destinatário
+reptile, réptil
+thrive, prosperar
+ultimate, final
+antique, antiquado
+applicant, candidato
+artifact, artefato
+authentic, autêntico
+chronology, cronologia
+diplomat, diplomata
+epic, épico
+excerpt, trecho
+fossil, fóssil
+humiliate, humilhar
+lyric, letra
+majesty, majestade
+monarch, monarca
+precede, preceder
+punctual, pontual
+recruit, recrutar
+refund, reembolso
+register, registrar
+renown, renome
+tusk, presa
+coexist, coexistir
+conceive, conceber
+dubious, duvidoso
+ego, ego
+elastic, elástico
+endeavor, esforço
+engrave, gravar
+excavate, escavar
+jagged, dentado
+locale, localidade
+magnitude, magnitude
+mold, molde
+outright, completamente
+periphery, periferia
+plaster, gesso
+shovel, pá
+skeletal, esquelético
+stumble, tropeçar
+thigh, coxa
+vicious, vicioso
+attic, sótão
+chunk, pedaço
+civic, cívico
+descent, descendência
+din, barulho
+dissatisfy, insatisfazer
+fuss, alvoroço
+glamorous, glamoroso
+gourmet, gourmet
+hence, portanto
+intrinsic, intrínseco
+kettle, chaleira
+ministry, ministério
+ordeal, provação
+outspoken, franco
+overwork, trabalhar demais
+particular, particular
+snore, roncar
+soundly, profundamente
+superintendent, superintendente
+congested, congestionado
+courier, mensageiro
+deform, deformar
+etiquette, etiqueta
+exclusive, exclusivo
+freight, carga
+garment, roupa
+insomnia, insônia
+intuitive, intuitivo
+liable, responsável
+obsess, obcecar
+overboard, overboard
+premium, prêmio
+privilege, privilégio
+propel, impulsionar
+socialize, socializar
+suppress, suprimir
+tram, bonde
+unsettle, perturbar
+warp, deformar
+accumulate, acumular
+aerial, aéreo
+apparatus, aparato
+avalanche, avalanche
+consistency, consistência
+discharge, descarregar
+episode, episódio
+intact, intacto
+mortal, mortal
+omen, presságio
+overcast, nublado
+poignant, comovente
+ranger, guarda-florestal
+rubble, entulho
+seclude, isolar
+sideways, lateralmente
+sob, soluçar
+sober, sóbrio
+speck, ponto
+upbringing, criação
+bliss, felicidade
+butler, mordomo
+cramp, cãibra
+decorate, decorar
+dilapidated, deteriorado
+evoke, evocar
+farewell, despedida
+faucet, torneira
+filth, sujeira
+flaw, defeito
+grin, sorrir
+housekeeping, serviços domésticos
+mound, monte
+numb, entorpecido
+reckless, imprudente
+slate, ardósia
+stool, banquinho
+testament, testamento
+timber, madeira
+valve, válvula
+camouflage, camuflagem
+confront, confrontar
+contemplate, contemplar
+contend, contender
+cot, cama de campanha
+enlist, alistar
+frontier, fronteira
+guerilla, guerrilha
+handbook, manual
+hesitant, hesitante
+lush, exuberante
+outfit, traje
+paw, pata
+splendid, esplêndido
+stray, vagar
+substantial, substancial
+torch, tocha
+tract, área
+vigil, vigília
+weary, cansado
+amid, em meio a
+backstage, bastidores
+billionaire, bilionário
+brute, bruto
+clumsy, desajeitado
+collide, colidir
+culprit, culpado
+evacuate, evacuar
+flammable, inflamável
+mob, multidão
+premature, prematuro
+resent, ressentir
+satire, sátira
+scrutiny, escrutínio
+segregate, segregar
+subject, assunto
+testify, testemunhar
+tumult, tumulto
+underestimate, subestimar
+uproar, tumulto
+accelerate, acelerar
+anew, de novo
+defect, defeito
+dreary, sombrio
+duplicate, duplicar
+electromagnetic, eletromagnético
+electron, elétron
+glide, deslizar
+ingenious, engenhoso
+innovation, inovação
+innovative, inovador
+launch, lançar
+meteorological, meteorológico
+meteorology, meteorologia
+penetrate, penetrar
+persistent, persistente
+propulsion, propulsão
+simulate, simular
+spur, espora
+stimulate, estimular
+beforehand, antecipadamente
+blurred, borrado
+centigrade, centígrado
+chatter, tagarelar
+concerto, concerto
+condense, condensar
+deteriorate, deteriorar
+degree, grau
+exterior, exterior
+hearty, caloroso
+hospitable, hospitaleiro
+humor, humor
+manor, mansão
+monastery, mosteiro
+nursery, berçário
+outstretched, estendido
+parcel, pacote
+profile, perfil
+winding, sinuoso
+zip, zíper
+abolish, abolir
+amend, emendar
+aspire, aspirar
+censor, censurar
+charter, carta
+constitution, constituição
+cosmopolitan, cosmopolita
+disseminate, disseminar
+flatter, lisonjear
+infamous, infame
+lame, manco
+limp, coxear
+outburst, explosão
+pathological, patológico
+phenomenal, fenomenal
+poll, pesquisa
+remorse, remorso
+secrecy, sigilo
+tackle, enfrentar
+trance, transe
+coward, covarde
+delete, deletar
+earnest, sério
+ethnic, étnico
+exclude, excluir
+firsthand, em primeira mão
+fluent, fluente
+imperial, imperial
+inclusive, inclusivo
+legislature, legislatura
+linguistic, linguístico
+monolingual, monolíngue
+nationality, nacionalidade
+patriot, patriota
+prosecute, processar
+racial, racial
+solemn, solene
+solidarity, solidariedade
+tact, tato
+undermine, minar
+constrain, constranger
+depot, depósito
+emulate, emular
+forefinger, dedo indicador
+guts, coragem
+inherent, inerente
+intimidate, intimidar
+janitor, zelador
+moist, úmido
+nope, não
+prod, cutucar
+ransom, resgate
+restrain, conter
+saliva, saliva
+spit, cuspir
+sprint, correr
+stunt, façanha
+tolerant, tolerante
+vampire, vampiro
+yawn, bocejar
+adjoining, adjacente
+allege, alegar
+arch, arco
+assemble, montar
+casualty, vítima
+erect, construir
+foul, falta
+hectare, hectare
+heighten, intensificar
+hospitality, hospitalidade
+mansion, mansão
+outnumber, superar em número
+overjoyed, radiante
+pasture, pasto
+petition, petição
+renovate, renovar
+revise, revisar
+slab, laje
+terrace, terraço
+turf, grama
+analogous, análogo
+binoculars, binóculos
+bulk, granel
+comprise, compreender
+depict, retratar
+dual, duplo
+Fahrenheit, fahrenheit
+fulfill, cumprir
+grove, bosque
+ore, minério
+outback, interior
+outweigh, superar
+paradox, paradoxo
+pier, cais
+shortcut, atalho
+tariff, tarifa
+thermometer, termômetro
+tilt, inclinar
+vice, vício
+whereabouts, paradeiro
+`
+;
+
+/* =========================================================================
+   App logic — no need to edit below this line.
+   ========================================================================= */
+
+const FONTS = [
+  { label: "Georgia (serif)", value: "Georgia, 'Times New Roman', serif" },
+  { label: "Times New Roman", value: "'Times New Roman', Times, serif" },
+  { label: "Palatino", value: "'Palatino Linotype', Palatino, 'Book Antiqua', serif" },
+  { label: "Garamond", value: "Garamond, 'Apple Garamond', serif" },
+  { label: "Book Antiqua", value: "'Book Antiqua', Palatino, serif" },
+  { label: "Arial", value: "Arial, Helvetica, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
+  { label: "Trebuchet MS", value: "'Trebuchet MS', sans-serif" },
+  { label: "Courier New (mono)", value: "'Courier New', Courier, monospace" }
+];
+
+const MIN_SIZE = 14, MAX_SIZE = 32, SIZE_STEP = 1;
+const MIN_WIDTH = 480, MAX_WIDTH = 1100, WIDTH_STEP = 40;
+
+const VOCAB_STATUSES = {
+  1: { label: 'New' },
+  2: { label: 'Learning' },
+  3: { label: 'Familiar' },
+  4: { label: 'Known' }
+};
+
+const state = {
+  glossary: new Map(),   // lowercase term -> { term, translation }
+  vocab: new Map(),      // normalized word -> { term, status, note, updatedAt }
+  expandedCategories: new Set(), // category names currently expanded in the sidebar (empty = all closed by default)
+  completed: new Set(),  // ids of texts marked as completed
+  activeTextId: null,
+  fontSize: 19,
+  readerWidth: 700,
+  columns: 1,
+  fontFamily: FONTS[0].value
+};
+
+// ---------- persistence ----------
+function loadSettings(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('reader_settings') || '{}');
+    if (saved.fontSize) state.fontSize = saved.fontSize;
+    if (saved.readerWidth) state.readerWidth = saved.readerWidth;
+    if (saved.columns) state.columns = saved.columns;
+    if (saved.fontFamily) state.fontFamily = saved.fontFamily;
+  }catch(e){}
+}
+function saveSettings(){
+  try{
+    localStorage.setItem('reader_settings', JSON.stringify({
+      fontSize: state.fontSize,
+      readerWidth: state.readerWidth,
+      columns: state.columns,
+      fontFamily: state.fontFamily
+    }));
+  }catch(e){}
+}
+function loadVocab(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('reader_vocab') || '{}');
+    state.vocab = new Map(Object.entries(saved));
+  }catch(e){ state.vocab = new Map(); }
+}
+function saveVocab(){
+  try{
+    localStorage.setItem('reader_vocab', JSON.stringify(Object.fromEntries(state.vocab)));
+  }catch(e){}
+}
+function loadCompleted(){
+  try{
+    const saved = JSON.parse(localStorage.getItem('reader_completed') || '[]');
+    state.completed = new Set(saved);
+  }catch(e){ state.completed = new Set(); }
+}
+function saveCompleted(){
+  try{
+    localStorage.setItem('reader_completed', JSON.stringify([...state.completed]));
+  }catch(e){}
+}
+function toggleCompleted(id){
+  if (state.completed.has(id)) state.completed.delete(id);
+  else state.completed.add(id);
+  saveCompleted();
+}
+// ---------- CSV parsing ----------
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i], next = text[i+1];
+    if (inQuotes){
+      if (c === '"' && next === '"'){ field += '"'; i++; }
+      else if (c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"'){ inQuotes = true; }
+      else if (c === ','){ row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r'){
+        if (c === '\r' && next === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(f => f.trim() !== '')) rows.push(row);
+        row = [];
+      } else { field += c; }
+    }
+  }
+  if (field.length || row.length){ row.push(field); if (row.some(f => f.trim() !== '')) rows.push(row); }
+  return rows
+    .filter(r => r.length >= 2)
+    .filter(r => !(rows.indexOf(r) === 0 && /^word$/i.test(r[0].trim()) && /translation/i.test(r[1].trim())))
+    .map(r => ({ term: r[0].trim(), translation: r[1].trim() }))
+    .filter(r => r.term.length > 0);
+}
+
+function buildGlossaryMap(rows){
+  const map = new Map();
+  rows.forEach(({term, translation}) => {
+    if (term) map.set(term.toLowerCase(), { term, translation });
+  });
+  return map;
+}
+
+function escapeRegex(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+let glossaryRegex = null;
+function rebuildRegex(){
+  const terms = [...state.glossary.values()].map(v => v.term)
+    .sort((a,b) => b.length - a.length);
+  if (!terms.length){ glossaryRegex = null; return; }
+  const pattern = terms.map(escapeRegex).join('|');
+  glossaryRegex = new RegExp('\\b(' + pattern + ')\\b', 'gi');
+}
+
+// ---------- rendering ----------
+function escapeHTML(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Word tokenizer used for vocabulary tracking (Latin letters incl. accents, plus apostrophes)
+const WORD_RE = /[A-Za-zÀ-ÖØ-öø-ÿ']+/g;
+
+function normalizeWord(w){
+  return w.replace(/^'+|'+$/g, '').toLowerCase();
+}
+
+// Wraps every word in a plain-text segment (i.e. text NOT already part of a
+// glossary match) so it can be clicked to add/edit vocabulary tracking.
+function renderWordsSegment(segment){
+  let out = '';
+  let idx = 0;
+  WORD_RE.lastIndex = 0;
+  let m;
+  while ((m = WORD_RE.exec(segment)) !== null){
+    out += escapeHTML(segment.slice(idx, m.index));
+    const word = m[0];
+    const key = normalizeWord(word);
+    const entry = key ? state.vocab.get(key) : null;
+    if (entry){
+      out += `<span class="vw status-${entry.status}" data-word="${escapeHTML(word)}">${escapeHTML(word)}</span>`;
+    } else {
+      out += `<span class="word" data-word="${escapeHTML(word)}">${escapeHTML(word)}</span>`;
+    }
+    idx = m.index + word.length;
+  }
+  out += escapeHTML(segment.slice(idx));
+  return out;
+}
+
+function highlightParagraph(text){
+  if (!glossaryRegex){ return renderWordsSegment(text); }
+  let out = '';
+  let lastIndex = 0;
+  glossaryRegex.lastIndex = 0;
+  let m;
+  while ((m = glossaryRegex.exec(text)) !== null){
+    out += renderWordsSegment(text.slice(lastIndex, m.index));
+    const matched = m[0];
+    const entry = state.glossary.get(matched.toLowerCase());
+    out += `<span class="gw" data-term="${escapeHTML(entry.term)}">${escapeHTML(matched)}</span>`;
+    lastIndex = m.index + matched.length;
+  }
+  out += renderWordsSegment(text.slice(lastIndex));
+  return out;
+}
+
+function renderText(textObj){
+  const col = document.getElementById('readerCol');
+  const paragraphs = textObj.body.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  const html = paragraphs.map(p => `<p>${highlightParagraph(p)}</p>`).join('');
+  const isDone = state.completed.has(textObj.id);
+  col.innerHTML = `
+    <div class="reader-title-row">
+      <div class="reader-title">${escapeHTML(textObj.title)}</div>
+      <button class="complete-btn ${isDone ? 'is-complete' : ''}" id="completeBtn" data-id="${textObj.id}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>${isDone ? 'Lesson Completed' : 'Complete Lesson'}</span>
+      </button>
+    </div>
+    <div class="reader-body" id="readerBody">${html}</div>
+    <div class="page-nav" id="pageNav">
+      <button class="page-nav-btn" id="pagePrev">‹ Prev</button>
+      <span class="page-nav-status" id="pageStatus"></span>
+      <button class="page-nav-btn" id="pageNext">Next ›</button>
+    </div>
+  `;
+  document.getElementById('readerScroll').scrollTop = 0;
+  setupColumnPaging();
+}
+
+function renderTextList(filter){
+  const listEl = document.getElementById('textList');
+  const f = (filter || '').trim().toLowerCase();
+  const items = TEXTS.filter(t => !f || t.title.toLowerCase().includes(f));
+
+  const grouped = new Map();
+  items.forEach(t => {
+    const cat = t.category || 'Uncategorized';
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat).push(t);
+  });
+
+  // preserve category order as first seen in the full TEXTS list
+  const categoryOrder = [];
+  TEXTS.forEach(t => {
+    const cat = t.category || 'Uncategorized';
+    if (!categoryOrder.includes(cat)) categoryOrder.push(cat);
+  });
+
+  listEl.innerHTML = categoryOrder.map(cat => {
+    const catItems = grouped.get(cat) || [];
+    if (f && !catItems.length) return ''; // hide empty categories while searching
+    const isExpanded = f ? true : state.expandedCategories.has(cat);
+    const doneCount = catItems.filter(t => state.completed.has(t.id)).length;
+    const pct = catItems.length ? Math.round((doneCount / catItems.length) * 100) : 0;
+    return `
+      <div class="category-group">
+        <button class="category-header" data-category="${escapeHTML(cat)}">
+          <svg class="chev ${isExpanded ? 'open' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M9 6l6 6-6 6"/></svg>
+          <span class="category-name">${escapeHTML(cat)}</span>
+          ${doneCount ? `<span class="category-progress">${pct}%</span>` : ''}
+          <span class="category-count">${catItems.length}</span>
+        </button>
+        ${isExpanded ? `
+          <div class="category-items">
+            ${catItems.map(t => `
+              <div class="text-item ${t.id === state.activeTextId ? 'active' : ''} ${state.completed.has(t.id) ? 'completed' : ''}" data-id="${t.id}">
+                <span class="n">${String(t.id).padStart(2,'0')}</span>
+                <span class="t">${escapeHTML(t.title)}</span>
+                <span class="check">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('sidebarFooter').textContent = `${TEXTS.length} texts`;
+}
+
+function selectText(id){
+  const t = TEXTS.find(x => x.id === id);
+  if (!t) return;
+  state.activeTextId = id;
+  renderText(t);
+  renderTextList(document.getElementById('searchInput').value);
+  if (window.innerWidth <= 820) document.getElementById('sidebar').classList.add('collapsed');
+}
+
+// ---------- controls ----------
+function applyReaderStyles(){
+  document.documentElement.style.setProperty('--reader-size', state.fontSize + 'px');
+  document.documentElement.style.setProperty('--reader-width', state.readerWidth + 'px');
+  document.documentElement.style.setProperty('--reader-columns', state.columns);
+  document.documentElement.style.setProperty('--reader-font', state.fontFamily);
+  document.querySelectorAll('.col-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.cols) === state.columns);
+  });
+  setupColumnPaging();
+}
+
+function setupColumnPaging(){
+  const body = document.getElementById('readerBody');
+  const nav = document.getElementById('pageNav');
+  if (!body || !nav) return;
+
+  if (state.columns <= 1){
+    body.classList.remove('paged');
+    body.style.height = '';
+    nav.classList.remove('show');
+    return;
+  }
+
+  const scrollEl = document.getElementById('readerScroll');
+  const titleRow = document.querySelector('.reader-title-row');
+  const scrollRect = scrollEl.getBoundingClientRect();
+  const titleBottom = titleRow ? titleRow.getBoundingClientRect().bottom : scrollRect.top;
+  const bottomMargin = 90; // room for the page-nav row + scroll padding
+  const availableHeight = window.innerHeight - titleBottom - bottomMargin;
+
+  body.classList.add('paged');
+  body.style.height = Math.max(280, availableHeight) + 'px';
+  nav.classList.add('show');
+
+  if (body.dataset.pagedColumns !== String(state.columns)){
+    body.dataset.pagedColumns = String(state.columns);
+    body.scrollLeft = 0;
+  }
+
+  updatePageStatus();
+}
+
+function updatePageStatus(){
+  const body = document.getElementById('readerBody');
+  if (!body) return;
+  const prevBtn = document.getElementById('pagePrev');
+  const nextBtn = document.getElementById('pageNext');
+  const statusEl = document.getElementById('pageStatus');
+  if (!prevBtn || !nextBtn || !statusEl) return;
+
+  const pageWidth = body.clientWidth;
+  const maxScroll = body.scrollWidth - pageWidth;
+  const totalPages = Math.max(1, Math.ceil((body.scrollWidth - 1) / pageWidth));
+  let currentPage = 1;
+  if (maxScroll > 0 && totalPages > 1){
+    currentPage = Math.round((body.scrollLeft / maxScroll) * (totalPages - 1)) + 1;
+  }
+
+  statusEl.textContent = `Page ${currentPage} of ${totalPages}`;
+  prevBtn.disabled = currentPage <= 1;
+  nextBtn.disabled = currentPage >= totalPages;
+}
+
+document.getElementById('readerCol').addEventListener('click', (e) => {
+  const body = document.getElementById('readerBody');
+  if (!body) return;
+  if (e.target.closest('#pagePrev')){
+    body.scrollBy({ left: -body.clientWidth, behavior: 'smooth' });
+  } else if (e.target.closest('#pageNext')){
+    body.scrollBy({ left: body.clientWidth, behavior: 'smooth' });
+  }
+});
+
+document.getElementById('readerCol').addEventListener('scroll', (e) => {
+  if (e.target.id === 'readerBody') updatePageStatus();
+}, true);
+
+window.addEventListener('resize', () => {
+  setupColumnPaging();
+});
+
+function populateFontSelect(){
+  const sel = document.getElementById('fontFamilySelect');
+  sel.innerHTML = FONTS.map(f => `<option value="${escapeHTML(f.value)}">${escapeHTML(f.label)}</option>`).join('');
+  sel.value = state.fontFamily;
+}
+
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function updateGlossaryBadge(){
+  document.getElementById('glossaryCount').textContent = `${state.glossary.size} glossary terms`;
+}
+
+function updateVocabBadge(){
+  document.getElementById('vocabCount').textContent = state.vocab.size;
+}
+
+function refreshActiveText(){
+  const active = TEXTS.find(t => t.id === state.activeTextId);
+  if (active) renderText(active);
+}
+
+// ---------- popup ----------
+let popupEl = null;
+function closePopup(){
+  if (popupEl){ popupEl.remove(); popupEl = null; }
+}
+function showPopup(target, term){
+  closePopup();
+  const entry = state.glossary.get(term.toLowerCase());
+  if (!entry) return;
+  const rect = target.getBoundingClientRect();
+  popupEl = document.createElement('div');
+  popupEl.className = 'popup';
+  popupEl.innerHTML = `<span class="pw">${escapeHTML(entry.term)}</span>${escapeHTML(entry.translation)}`;
+  document.body.appendChild(popupEl);
+  const pw = popupEl.offsetWidth, ph = popupEl.offsetHeight;
+  let left = rect.left + rect.width/2 - pw/2;
+  left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+  let top = rect.top - ph - 10;
+  if (top < 8) top = rect.bottom + 10;
+  popupEl.style.left = left + 'px';
+  popupEl.style.top = top + 'px';
+}
+
+// ---------- vocab popup (interactive) ----------
+function showVocabPopup(target, word){
+  closePopup();
+  const key = normalizeWord(word);
+  if (!key) return;
+  const existing = state.vocab.get(key);
+
+  popupEl = document.createElement('div');
+  popupEl.className = 'vocab-popup';
+  popupEl.innerHTML = `
+    <div class="vp-term">${escapeHTML(existing ? existing.term : word)}</div>
+    <div class="vp-status-row">
+      ${Object.entries(VOCAB_STATUSES).map(([id, s]) => `
+        <button class="vp-status-btn ${existing && String(existing.status) === id ? 'active' : ''}" data-status="${id}">${s.label}</button>
+      `).join('')}
+    </div>
+    <textarea placeholder="Note / translation (optional)">${existing ? escapeHTML(existing.note || '') : ''}</textarea>
+    <div class="vp-actions">
+      ${existing ? '<button class="vp-remove" data-action="remove">Remove</button>' : '<span></span>'}
+      <button class="vp-done" data-action="done">Done</button>
+    </div>
+  `;
+  document.body.appendChild(popupEl);
+
+  const rect = target.getBoundingClientRect();
+  const pw = popupEl.offsetWidth, ph = popupEl.offsetHeight;
+  let left = rect.left + rect.width/2 - pw/2;
+  left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+  let top = rect.top - ph - 10;
+  if (top < 8) top = rect.bottom + 10;
+  popupEl.style.left = left + 'px';
+  popupEl.style.top = top + 'px';
+
+  const textarea = popupEl.querySelector('textarea');
+
+  function ensureEntry(status){
+    let entry = state.vocab.get(key);
+    if (!entry){
+      entry = { term: word, status, note: '', updatedAt: Date.now() };
+      state.vocab.set(key, entry);
+    } else {
+      entry.status = status;
+      entry.updatedAt = Date.now();
+    }
+    return entry;
+  }
+
+  popupEl.querySelectorAll('.vp-status-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const status = Number(btn.dataset.status);
+      ensureEntry(status);
+      popupEl.querySelectorAll('.vp-status-btn').forEach(b => b.classList.toggle('active', b === btn));
+      saveVocab();
+      updateVocabBadge();
+      refreshActiveText();
+    });
+  });
+
+  textarea.addEventListener('click', (e) => e.stopPropagation());
+  textarea.addEventListener('input', () => {
+    const entry = state.vocab.get(key);
+    if (entry){
+      entry.note = textarea.value;
+      entry.updatedAt = Date.now();
+      saveVocab();
+    }
+  });
+
+  const removeBtn = popupEl.querySelector('.vp-remove');
+  if (removeBtn){
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.vocab.delete(key);
+      saveVocab();
+      updateVocabBadge();
+      refreshActiveText();
+      closePopup();
+    });
+  }
+
+  popupEl.querySelector('.vp-done').addEventListener('click', (e) => {
+    e.stopPropagation();
+    // If the user opened the popup but never picked a status, don't create
+    // an empty entry just from typing a note with no status chosen.
+    const entry = state.vocab.get(key);
+    if (entry && !textarea.value.trim() && !entry.note) { /* fine, keep as-is */ }
+    closePopup();
+  });
+}
+
+// ---------- vocabulary modal ----------
+let vocabFilter = 'all';
+
+function openVocabModal(){
+  document.getElementById('vocabModalOverlay').classList.add('show');
+  renderVocabList();
+}
+function closeVocabModal(){
+  document.getElementById('vocabModalOverlay').classList.remove('show');
+}
+
+function renderVocabList(){
+  const listEl = document.getElementById('vocabList');
+  let entries = [...state.vocab.entries()];
+  if (vocabFilter !== 'all'){
+    entries = entries.filter(([, e]) => String(e.status) === vocabFilter);
+  }
+  entries.sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
+
+  if (!entries.length){
+    listEl.innerHTML = `<div class="vocab-empty">No words here yet. Click any word in a text to start tracking it.</div>`;
+    return;
+  }
+
+  listEl.innerHTML = entries.map(([key, e]) => `
+    <div class="vocab-row" data-key="${escapeHTML(key)}">
+      <div class="vr-dot status-${e.status}"></div>
+      <div class="vr-main">
+        <div class="vr-term">${escapeHTML(e.term)}</div>
+        ${e.note ? `<div class="vr-note">${escapeHTML(e.note)}</div>` : ''}
+      </div>
+      <select class="vr-select" data-key="${escapeHTML(key)}">
+        ${Object.entries(VOCAB_STATUSES).map(([id, s]) => `<option value="${id}" ${String(e.status)===id?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+      <button class="vr-del" data-key="${escapeHTML(key)}" title="Remove">×</button>
+    </div>
+  `).join('');
+}
+
+document.getElementById('vocabBtn').addEventListener('click', openVocabModal);
+document.getElementById('vocabModalClose').addEventListener('click', closeVocabModal);
+document.getElementById('vocabModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'vocabModalOverlay') closeVocabModal();
+});
+document.getElementById('vocabFilters').addEventListener('click', (e) => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  vocabFilter = chip.dataset.filter;
+  document.querySelectorAll('#vocabFilters .filter-chip').forEach(c => c.classList.toggle('active', c === chip));
+  renderVocabList();
+});
+document.getElementById('vocabList').addEventListener('change', (e) => {
+  const sel = e.target.closest('.vr-select');
+  if (!sel) return;
+  const entry = state.vocab.get(sel.dataset.key);
+  if (entry){
+    entry.status = Number(sel.value);
+    entry.updatedAt = Date.now();
+    saveVocab();
+    renderVocabList();
+    refreshActiveText();
+  }
+});
+document.getElementById('vocabList').addEventListener('click', (e) => {
+  const del = e.target.closest('.vr-del');
+  if (!del) return;
+  state.vocab.delete(del.dataset.key);
+  saveVocab();
+  updateVocabBadge();
+  renderVocabList();
+  refreshActiveText();
+});
+
+// ---------- events ----------
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.vocab-popup')) return; // handled by its own listeners
+  const gw = e.target.closest('.gw');
+  if (gw){
+    e.stopPropagation();
+    showPopup(gw, gw.dataset.term);
+    return;
+  }
+  const vword = e.target.closest('.vw, .word');
+  if (vword){
+    e.stopPropagation();
+    showVocabPopup(vword, vword.dataset.word);
+    return;
+  }
+  const completeBtn = e.target.closest('.complete-btn');
+  if (completeBtn){
+    toggleCompleted(Number(completeBtn.dataset.id));
+    const t = TEXTS.find(x => x.id === state.activeTextId);
+    if (t) renderText(t);
+    renderTextList(document.getElementById('searchInput').value);
+    return;
+  }
+  const item = e.target.closest('.text-item');
+  if (item){
+    selectText(Number(item.dataset.id));
+    return;
+  }
+  const catHeader = e.target.closest('.category-header');
+  if (catHeader){
+    const cat = catHeader.dataset.category;
+    if (state.expandedCategories.has(cat)) state.expandedCategories.delete(cat);
+    else state.expandedCategories.add(cat);
+    renderTextList(document.getElementById('searchInput').value);
+    return;
+  }
+  closePopup();
+});
+document.addEventListener('scroll', closePopup, true);
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  renderTextList(e.target.value);
+});
+
+document.getElementById('menuToggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+});
+
+document.getElementById('fontInc').addEventListener('click', () => {
+  state.fontSize = Math.min(MAX_SIZE, state.fontSize + SIZE_STEP);
+  applyReaderStyles(); saveSettings();
+});
+document.getElementById('fontDec').addEventListener('click', () => {
+  state.fontSize = Math.max(MIN_SIZE, state.fontSize - SIZE_STEP);
+  applyReaderStyles(); saveSettings();
+});
+document.getElementById('widthInc').addEventListener('click', () => {
+  state.readerWidth = Math.min(MAX_WIDTH, state.readerWidth + WIDTH_STEP);
+  applyReaderStyles(); saveSettings();
+});
+document.getElementById('widthDec').addEventListener('click', () => {
+  state.readerWidth = Math.max(MIN_WIDTH, state.readerWidth - WIDTH_STEP);
+  applyReaderStyles(); saveSettings();
+});
+document.querySelectorAll('.col-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.columns = Number(btn.dataset.cols);
+    applyReaderStyles(); saveSettings();
+  });
+});
+document.getElementById('fontFamilySelect').addEventListener('change', (e) => {
+  state.fontFamily = e.target.value;
+  applyReaderStyles(); saveSettings();
+});
+
+// ---------- init ----------
+function init(){
+  loadSettings();
+  applyReaderStyles();
+  populateFontSelect();
+
+  state.glossary = buildGlossaryMap(parseCSV(GLOSSARY_CSV));
+  rebuildRegex();
+  updateGlossaryBadge();
+
+  loadVocab();
+  updateVocabBadge();
+
+  loadCompleted();
+
+  renderTextList('');
+  if (TEXTS.length) selectText(TEXTS[0].id);
+}
+init();
+</script>
+</body>
+</html>

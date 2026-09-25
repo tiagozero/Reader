@@ -722,616 +722,96 @@
 
 <script>
 /* =========================================================================
-   1. TEXTS
+   1. TEXTS — one JSON file per section
    -------------------------------------------------------------------------
-   Paste your 100 texts here as a JSON array. Each item needs an "id"
-   (unique), a "title", and a "body" (plain text — use "
+   Every section of the library now lives in its own JSON file inside the
+   "Text/" folder. To add a section, drop in a new JSON file and add one
+   line to SECTIONS below. Nothing else needs to change.
 
-" between
-   paragraphs, they'll be split into <p> tags automatically).
+   JSON file format — a plain array:
+
+     [
+       { "id": 1, "title": "American superstitions",
+         "body": "First paragraph.\n\nSecond paragraph." },
+       { "id": 2, "title": "Unlucky number thirteen", "body": "…" }
+     ]
+
+   …or an object that names its own category:
+
+     {
+       "category": "Foundation",
+       "texts": [ { "id": 1, "title": "…", "body": "…" } ]
+     }
+
+   Notes
+   • "id" must be unique across ALL files — it drives the sidebar numbering,
+     the completed-lessons store and the vocabulary links.
+   • "body" uses a blank line (\n\n) between paragraphs.
+   • The order of the SECTIONS list = the order of the categories shown in
+     the sidebar.
+   • The files are fetched, so the page must be served over http(s).
+     Opening it straight from disk (file://) blocks the requests.
    ========================================================================= */
-const TEXTS = [
-  {
-    "id": 1,
-    "category": "Foundation",
-    "title": "American superstitions",
-    "body": "Every culture has superstitions. Some people believe them more than others. Even in our modern technological society, superstitions still hold a powerful influence. Most people seem to outgrow them. But how many people continue to believe, or at least act like they believe, these superstitions as adults? A survey conducted for the journal American Demographics by the research firm Market Facts found some surprising results. In modern America, where superstitions are seen as nothing more than the beliefs of a weak mind, 44% of the people surveyed still admitted they were superstitious. The other 56% claimed to be only optimistically superstitious, meaning they were more willing to believe superstitions relating to good luck over ones related to bad luck. For example, 12% of those who said they were not really superstitious confessed to knocking on wood for good luck. And 9% confessed they would pick up a penny on the street for good luck. A further 9% of non-believers also said they would pick a four-leaf clover for luck if they found one. And some still believed in kissing under the mistletoe for luck. Of the 44% of Americans who admit their superstitious beliefs, 65% said they were only a little superstitious, 27% were somewhat superstitious, and 8% were very superstitious. Among this group of believers, some interesting differences appeared when the men and women were considered separately. In the survey, women comprised 60% of the entire superstitious group, seeming to indicate that women tend to be more superstitious than men. However, more than half, 64%, of the very superstitious believers were male. Additionally, age also showed significant differences between the believers and non-believers. More young people admitted their superstitious nature than older people in the survey. For people between the ages of 18 and 24 taking the survey, 64% claimed to be at least a little superstitious. But for seniors 65 and older, only 30% admitted to believing any superstitions. It might be expected that people with more education would be less superstitious, but results from the survey indicated almost equal numbers of believers between those with and without college degrees. Of those survey respondents who never finished or only finished high school, 42% reported being at least a little superstitious. For those with a college education, 47% claimed the same minimal level of belief. In the survey, 10 common superstitions were listed for the people who responded. Of these superstitions, five were related to good luck and five to bad luck. Respondents were then asked to check the ones they believed. Of the superstitions in the list, good luck superstitions were more widely held. The top superstitions related to good luck that most people followed very much were picking four-leaf clovers, 79%, knocking on wood, 72%, picking up pennies, 70%, and crossing fingers for luck, 59%. Of the bad luck superstitions, the most common belief was that breaking a mirror brought bad luck, 82%. Other bad luck superstitions listed in the survey included seeing black cats, walking under ladders, seeing the bride before the wedding, and doing anything on Friday the 13th. Many people would like to think it could not hurt to do something like knocking on wood or crossing your fingers to bring a little luck. After all, who doesn't want a little luck? "
-  },
-  {
-    "id": 2,
-    "category": "Foundation",
-    "title": "Unlucky number thirteen",
-    "body": "1998 was a very bad year, especially for people who believe the number thirteen is an unlucky number. In 1998, three months had a Friday that fell on the thirteenth of the month, February, March and November. That is actually the most Friday the thirteenths possible in a year. The origin of the number thirteen being an unlucky number goes back to the time of Jesus' death. At the Last Supper, Jesus gathered his twelve followers for a special meal, but including himself, there were a total of thirteen people at the table. One of those followers later betrayed Jesus and turned him over to be killed. Today, superstitions about the number continue to worry people. As a result, most American skyscrapers do not have a thirteenth floor. In addition, most airplanes lack a thirteenth row because few customers would buy tickets to sit there. Perhaps surprisingly, when asked, only thirteen percent of the American population admit they believe that Friday the thirteenth is an unlucky day. The percentage is slightly higher among young people. About thirty percent of Americans between the ages of eighteen and twenty-four say they try to generally be a little more careful on a Friday falling on the thirteenth. Interestingly, the nine movies of the horror series Friday the thirteenth were all released during this age group's formative years, 1980 to 1993. Perhaps the series has had a greater effect on people than anyone would like to admit. "
-  },
-  {
-    "id": 3,
-    "category": "Foundation",
-    "title": "Master of Disguise",
-    "body": "Octopuses are famous for their round bodies, big eyes, and eight arms. There are many different types of octopuses, but all are alike in one way: They are masters of disguise. Octopuses can change their appearance in less than a second to look like rocks, plants, or even other animals. How do they do this? An octopus can disguise itself in three ways. One is by using color. An octopus’s skin has special cells called chromatophores. These cells are filled with yellow, brown, and red pigment. When an octopus moves its muscles a certain way, the cells become large and produce colorful spots and other patterns on its skin. Chromatophores can also reflect light. In blue light, for example, an octopus’s skin will look blue. In white light, its skin will look white. With these cells, an octopus can produce many different skin colors and patterns. An octopus can also change its skin texture. When the octopus moves its muscles, its skin can go from smooth to spiky. It might then look like a plant, or coral. Another way an octopus disguises itself is by changing its shape. Some, for example, roll their bodies into balls so they look like rocks. One type of octopus can change its form to look like other sea creatures—especially dangerous ones, such as sea snakes. Why are octopuses so good at disguising themselves? They have to be. The ocean is not a safe place for them. Because they have no bones in their bodies, octopuses are like large pieces of meat. Many predators want to eat them— and they can eat them whole. To survive, octopuses have developed the amazing ability to change their appearance very quickly in order to hide from predators."
-  },
-  {
-    "id": 4,
-    "category": "Foundation",
-    "title": "Text 4",
-    "body": ""
-  },
-  {
-    "id": 5,
-    "category": "Foundation",
-    "title": "Text 5",
-    "body": ""
-  },
-  {
-    "id": 6,
-    "category": "Foundation",
-    "title": "Text 6",
-    "body": ""
-  },
-  {
-    "id": 7,
-    "category": "Foundation",
-    "title": "Text 7",
-    "body": ""
-  },
-  {
-    "id": 8,
-    "category": "Foundation",
-    "title": "Text 8",
-    "body": ""
-  },
-  {
-    "id": 9,
-    "category": "Foundation",
-    "title": "Text 9",
-    "body": ""
-  },
-  {
-    "id": 10,
-    "category": "Foundation",
-    "title": "Text 10",
-    "body": ""
-  },
-  {
-    "id": 11,
-    "category": "Foundation",
-    "title": "Text 11",
-    "body": ""
-  },
-  {
-    "id": 12,
-    "category": "Foundation",
-    "title": "Text 12",
-    "body": ""
-  },
-  {
-    "id": 13,
-    "category": "Foundation",
-    "title": "Text 13",
-    "body": ""
-  },
-  {
-    "id": 14,
-    "category": "Foundation",
-    "title": "Text 14",
-    "body": ""
-  },
-  {
-    "id": 15,
-    "category": "Foundation",
-    "title": "Text 15",
-    "body": ""
-  },
-  {
-    "id": 16,
-    "category": "Foundation",
-    "title": "Text 16",
-    "body": ""
-  },
-  {
-    "id": 17,
-    "category": "Foundation",
-    "title": "Text 17",
-    "body": ""
-  },
-  {
-    "id": 18,
-    "category": "Foundation",
-    "title": "Text 18",
-    "body": ""
-  },
-  {
-    "id": 19,
-    "category": "Foundation",
-    "title": "Text 19",
-    "body": ""
-  },
-  {
-    "id": 20,
-    "category": "Foundation",
-    "title": "Text 20",
-    "body": ""
-  },
-  {
-    "id": 21,
-    "category": "Category 2",
-    "title": "Text 21",
-    "body": ""
-  },
-  {
-    "id": 22,
-    "category": "Category 2",
-    "title": "Text 22",
-    "body": ""
-  },
-  {
-    "id": 23,
-    "category": "Category 2",
-    "title": "Text 23",
-    "body": ""
-  },
-  {
-    "id": 24,
-    "category": "Category 2",
-    "title": "Text 24",
-    "body": ""
-  },
-  {
-    "id": 25,
-    "category": "Category 2",
-    "title": "Text 25",
-    "body": ""
-  },
-  {
-    "id": 26,
-    "category": "Category 2",
-    "title": "Text 26",
-    "body": ""
-  },
-  {
-    "id": 27,
-    "category": "Category 2",
-    "title": "Text 27",
-    "body": ""
-  },
-  {
-    "id": 28,
-    "category": "Category 2",
-    "title": "Text 28",
-    "body": ""
-  },
-  {
-    "id": 29,
-    "category": "Category 2",
-    "title": "Text 29",
-    "body": ""
-  },
-  {
-    "id": 30,
-    "category": "Category 2",
-    "title": "Text 30",
-    "body": ""
-  },
-  {
-    "id": 31,
-    "category": "Category 2",
-    "title": "Text 31",
-    "body": ""
-  },
-  {
-    "id": 32,
-    "category": "Category 2",
-    "title": "Text 32",
-    "body": ""
-  },
-  {
-    "id": 33,
-    "category": "Category 2",
-    "title": "Text 33",
-    "body": ""
-  },
-  {
-    "id": 34,
-    "category": "Category 2",
-    "title": "Text 34",
-    "body": ""
-  },
-  {
-    "id": 35,
-    "category": "Category 2",
-    "title": "Text 35",
-    "body": ""
-  },
-  {
-    "id": 36,
-    "category": "Category 2",
-    "title": "Text 36",
-    "body": ""
-  },
-  {
-    "id": 37,
-    "category": "Category 2",
-    "title": "Text 37",
-    "body": ""
-  },
-  {
-    "id": 38,
-    "category": "Category 2",
-    "title": "Text 38",
-    "body": ""
-  },
-  {
-    "id": 39,
-    "category": "Category 2",
-    "title": "Text 39",
-    "body": ""
-  },
-  {
-    "id": 40,
-    "category": "Category 2",
-    "title": "Text 40",
-    "body": ""
-  },
-  {
-    "id": 41,
-    "category": "Podcasts",
-    "title": "Text 41",
-    "body": ""
-  },
-  {
-    "id": 42,
-    "category": "Podcasts",
-    "title": "Text 42",
-    "body": ""
-  },
-  {
-    "id": 43,
-    "category": "Podcasts",
-    "title": "Text 43",
-    "body": ""
-  },
-  {
-    "id": 44,
-    "category": "Podcasts",
-    "title": "Text 44",
-    "body": ""
-  },
-  {
-    "id": 45,
-    "category": "Podcasts",
-    "title": "Text 45",
-    "body": ""
-  },
-  {
-    "id": 46,
-    "category": "Podcasts",
-    "title": "Text 46",
-    "body": ""
-  },
-  {
-    "id": 47,
-    "category": "Podcasts",
-    "title": "Text 47",
-    "body": ""
-  },
-  {
-    "id": 48,
-    "category": "Podcasts",
-    "title": "Text 48",
-    "body": ""
-  },
-  {
-    "id": 49,
-    "category": "Podcasts",
-    "title": "Text 49",
-    "body": ""
-  },
-  {
-    "id": 50,
-    "category": "Podcasts",
-    "title": "Text 50",
-    "body": ""
-  },
-  {
-    "id": 51,
-    "category": "Podcasts",
-    "title": "Text 51",
-    "body": ""
-  },
-  {
-    "id": 52,
-    "category": "Podcasts",
-    "title": "Text 52",
-    "body": ""
-  },
-  {
-    "id": 53,
-    "category": "Podcasts",
-    "title": "Text 53",
-    "body": ""
-  },
-  {
-    "id": 54,
-    "category": "Podcasts",
-    "title": "Text 54",
-    "body": ""
-  },
-  {
-    "id": 55,
-    "category": "Podcasts",
-    "title": "Text 55",
-    "body": ""
-  },
-  {
-    "id": 56,
-    "category": "Podcasts",
-    "title": "Text 56",
-    "body": ""
-  },
-  {
-    "id": 57,
-    "category": "Podcasts",
-    "title": "Text 57",
-    "body": ""
-  },
-  {
-    "id": 58,
-    "category": "Podcasts",
-    "title": "Text 58",
-    "body": ""
-  },
-  {
-    "id": 59,
-    "category": "Podcasts",
-    "title": "Text 59",
-    "body": ""
-  },
-  {
-    "id": 60,
-    "category": "Podcasts",
-    "title": "Text 60",
-    "body": ""
-  },
-  {
-    "id": 61,
-    "category": "Category 4",
-    "title": "Text 61",
-    "body": ""
-  },
-  {
-    "id": 62,
-    "category": "Category 4",
-    "title": "Text 62",
-    "body": ""
-  },
-  {
-    "id": 63,
-    "category": "Category 4",
-    "title": "Text 63",
-    "body": ""
-  },
-  {
-    "id": 64,
-    "category": "Category 4",
-    "title": "Text 64",
-    "body": ""
-  },
-  {
-    "id": 65,
-    "category": "Category 4",
-    "title": "Text 65",
-    "body": ""
-  },
-  {
-    "id": 66,
-    "category": "Category 4",
-    "title": "Text 66",
-    "body": ""
-  },
-  {
-    "id": 67,
-    "category": "Category 4",
-    "title": "Text 67",
-    "body": ""
-  },
-  {
-    "id": 68,
-    "category": "Category 4",
-    "title": "Text 68",
-    "body": ""
-  },
-  {
-    "id": 69,
-    "category": "Category 4",
-    "title": "Text 69",
-    "body": ""
-  },
-  {
-    "id": 70,
-    "category": "Category 4",
-    "title": "Text 70",
-    "body": ""
-  },
-  {
-    "id": 71,
-    "category": "Category 4",
-    "title": "Text 71",
-    "body": ""
-  },
-  {
-    "id": 72,
-    "category": "Category 4",
-    "title": "Text 72",
-    "body": ""
-  },
-  {
-    "id": 73,
-    "category": "Category 4",
-    "title": "Text 73",
-    "body": ""
-  },
-  {
-    "id": 74,
-    "category": "Category 4",
-    "title": "Text 74",
-    "body": ""
-  },
-  {
-    "id": 75,
-    "category": "Category 4",
-    "title": "Text 75",
-    "body": ""
-  },
-  {
-    "id": 76,
-    "category": "Category 4",
-    "title": "Text 76",
-    "body": ""
-  },
-  {
-    "id": 77,
-    "category": "Category 4",
-    "title": "Text 77",
-    "body": ""
-  },
-  {
-    "id": 78,
-    "category": "Category 4",
-    "title": "Text 78",
-    "body": ""
-  },
-  {
-    "id": 79,
-    "category": "Category 4",
-    "title": "Text 79",
-    "body": ""
-  },
-  {
-    "id": 80,
-    "category": "Category 4",
-    "title": "Text 80",
-    "body": ""
-  },
-  {
-    "id": 81,
-    "category": "Challanges",
-    "title": "Text 81",
-    "body": ""
-  },
-  {
-    "id": 82,
-    "category": "Challanges",
-    "title": "Text 82",
-    "body": ""
-  },
-  {
-    "id": 83,
-    "category": "Challanges",
-    "title": "Text 83",
-    "body": ""
-  },
-  {
-    "id": 84,
-    "category": "Challanges",
-    "title": "Text 84",
-    "body": ""
-  },
-  {
-    "id": 85,
-    "category": "Challanges",
-    "title": "Text 85",
-    "body": ""
-  },
-  {
-    "id": 86,
-    "category": "Challanges",
-    "title": "Text 86",
-    "body": ""
-  },
-  {
-    "id": 87,
-    "category": "Challanges",
-    "title": "Text 87",
-    "body": ""
-  },
-  {
-    "id": 88,
-    "category": "Challanges",
-    "title": "Text 88",
-    "body": ""
-  },
-  {
-    "id": 89,
-    "category": "Challanges",
-    "title": "Text 89",
-    "body": ""
-  },
-  {
-    "id": 90,
-    "category": "Challanges",
-    "title": "Text 90",
-    "body": ""
-  },
-  {
-    "id": 91,
-    "category": "Challanges",
-    "title": "Text 91",
-    "body": ""
-  },
-  {
-    "id": 92,
-    "category": "Challanges",
-    "title": "Text 92",
-    "body": ""
-  },
-  {
-    "id": 93,
-    "category": "Challanges",
-    "title": "Text 93",
-    "body": ""
-  },
-  {
-    "id": 94,
-    "category": "Challanges",
-    "title": "Text 94",
-    "body": ""
-  },
-  {
-    "id": 95,
-    "category": "Challanges",
-    "title": "Text 95",
-    "body": ""
-  },
-  {
-    "id": 96,
-    "category": "Challanges",
-    "title": "Text 96",
-    "body": ""
-  },
-  {
-    "id": 97,
-    "category": "Challanges",
-    "title": "Text 97",
-    "body": ""
-  },
-  {
-    "id": 98,
-    "category": "Challanges",
-    "title": "Text 98",
-    "body": ""
-  },
-  {
-    "id": 99,
-    "category": "Challanges",
-    "title": "Text 99",
-    "body": ""
-  },
-  {
-    "id": 100,
-    "category": "Challanges",
-    "title": "Text 100",
-    "body": ""
-  }
+const TEXT_DIR = 'Text/';
+
+const SECTIONS = [
+  { category: 'Foundation' },
+  { category: 'Category 2' },
+  { category: 'Podcasts' },
+  { category: 'Category 4' },
+  { category: 'Challanges' }
+  // Custom filename? Just override it:
+  // { category: 'Short stories', file: 'Text/short-stories.json' },
 ];
+
+let TEXTS = [];               // filled in by loadTexts()
+let loadedSectionCount = 0;   // how many section files loaded successfully
+let failedSections = [];      // sections that could not be read
+
+function sectionFile(section){
+  return section.file || (TEXT_DIR + section.category + '.json');
+}
+
+async function loadTexts(){
+  const collected = [];
+
+  const results = await Promise.all(SECTIONS.map(async (section) => {
+    const url = sectionFile(section);
+    try{
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      const list = Array.isArray(data) ? data
+                 : (data && Array.isArray(data.texts)) ? data.texts
+                 : [];
+      const fallbackCategory =
+        (!Array.isArray(data) && data && data.category) || section.category;
+
+      list.forEach((t, i) => {
+        const numId = Number(t.id);
+        collected.push({
+          id: Number.isFinite(numId) ? numId : (collected.length + 1),
+          title: t.title || ('Text ' + (i + 1)),
+          body: typeof t.body === 'string' ? t.body : '',
+          category: t.category || fallbackCategory
+        });
+      });
+
+      return { ok: true, section };
+    }catch(err){
+      console.warn('Could not load ' + url + ':', err);
+      return { ok: false, section, error: err };
+    }
+  }));
+
+  loadedSectionCount = results.filter(r => r.ok).length;
+  failedSections = results.filter(r => !r.ok);
+
+  collected.sort((a, b) => a.id - b.id);
+  TEXTS = collected;
+  return TEXTS;
+}
 
 /* =========================================================================
    2. SHARED GLOSSARY (CSV)
@@ -5215,7 +4695,18 @@ function renderTextList(filter){
     `;
   }).join('');
 
-  document.getElementById('sidebarFooter').textContent = `${TEXTS.length} texts`;
+  updateSidebarFooter();
+}
+
+function updateSidebarFooter(){
+  const parts = [`${TEXTS.length} texts`];
+  if (SECTIONS.length){
+    parts.push(`${loadedSectionCount}/${SECTIONS.length} sections`);
+  }
+  if (failedSections.length){
+    parts.push(`⚠ ${failedSections.map(f => f.section.category).join(', ')}`);
+  }
+  document.getElementById('sidebarFooter').textContent = parts.join(' · ');
 }
 
 function selectText(id){
@@ -5225,6 +4716,26 @@ function selectText(id){
   renderText(t);
   renderTextList(document.getElementById('searchInput').value);
   if (window.innerWidth <= 820) document.getElementById('sidebar').classList.add('collapsed');
+}
+
+// ---------- loading / error states ----------
+function renderLoadingState(){
+  document.getElementById('readerCol').innerHTML = `
+    <div class="empty-state">
+      <h2>Loading library…</h2>
+      <p>Reading the section files from the <code>Text/</code> folder.</p>
+    </div>`;
+}
+
+function renderLoadErrorState(){
+  document.getElementById('readerCol').innerHTML = `
+    <div class="empty-state">
+      <h2>No texts loaded</h2>
+      <p>None of the section files could be read. Check that each file listed
+      in <code>SECTIONS</code> exists inside <code>Text/</code>, and that the
+      page is served over <code>http(s)</code> — browsers block
+      <code>fetch()</code> on <code>file://</code>.</p>
+    </div>`;
 }
 
 // ---------- controls ----------
@@ -5599,7 +5110,7 @@ document.getElementById('fontFamilySelect').addEventListener('change', (e) => {
 });
 
 // ---------- init ----------
-function init(){
+async function init(){
   loadSettings();
   applyReaderStyles();
   populateFontSelect();
@@ -5614,7 +5125,17 @@ function init(){
   loadCompleted();
 
   renderTextList('');
-  if (TEXTS.length) selectText(TEXTS[0].id);
+  renderLoadingState();
+
+  await loadTexts();
+
+  renderTextList('');
+
+  if (TEXTS.length){
+    selectText(TEXTS[0].id);
+  } else {
+    renderLoadErrorState();
+  }
 }
 init();
 </script>
